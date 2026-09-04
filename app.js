@@ -45,7 +45,7 @@ let lastClickAt = 0;
 let lastTranscript = '';
 
 function logError(context, error) {
-  console.error(`[Vision Interface] ${context}`, error);
+  console.error(`[Interface] ${context}`, error);
 }
 
 async function updateTranscript() {
