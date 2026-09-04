@@ -22,6 +22,11 @@ const gestureCursor = $('#gestureCursor');
 const transcriptPanel = $('.transcript-panel');
 const transcriptText = $('#transcriptText');
 const transcriptState = $('#transcriptState');
+const nowPlaying = $('.now-playing');
+const playerName = $('#playerName');
+const trackTitle = $('#trackTitle');
+const trackArtist = $('#trackArtist');
+const albumArt = $('#albumArt');
 
 const connections = [
   [0,1],[1,2],[2,3],[3,4], [0,5],[5,6],[6,7],[7,8],
@@ -63,6 +68,31 @@ async function updateTranscript() {
     }
   } catch {
     transcriptState.textContent = 'STANDBY';
+  }
+}
+
+async function updateNowPlaying() {
+  try {
+    const response = await fetch(`now-playing.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Now-playing bridge unavailable');
+    const track = await response.json();
+    const active = Boolean(track.active && track.title);
+    nowPlaying.classList.toggle('playing', active && track.status === 'Playing');
+    playerName.textContent = active ? (track.player || 'MEDIA').toUpperCase() : 'LISTENING';
+    trackTitle.textContent = active ? track.title : 'No signal';
+    trackArtist.textContent = active
+      ? [track.artist, track.album].filter(Boolean).join(' // ')
+      : 'Waiting for media…';
+    if (active && track.artUrl) {
+      albumArt.src = track.artUrl;
+      albumArt.hidden = false;
+    } else {
+      albumArt.removeAttribute('src');
+      albumArt.hidden = true;
+    }
+  } catch {
+    nowPlaying.classList.remove('playing');
+    playerName.textContent = 'OFFLINE';
   }
 }
 
@@ -332,3 +362,5 @@ listCameras().catch(() => {});
 loadRecognizer();
 updateTranscript();
 window.setInterval(updateTranscript, 350);
+updateNowPlaying();
+window.setInterval(updateNowPlaying, 1000);
