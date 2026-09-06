@@ -1,6 +1,6 @@
 {
   "name": "webcam_viewer",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "A small local web app that displays a live webcam feed.",
   "main": "electron-main.js",
   "scripts": {
