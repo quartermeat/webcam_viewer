@@ -18,7 +18,7 @@ function bridgeIsRunning() {
 
 async function ensureBridge() {
   if (await bridgeIsRunning()) return;
-  bridgeProcess = spawn('python3', ['server.py'], { cwd: __dirname, stdio: 'inherit' });
+  bridgeProcess = spawn('./bin/webcam-viewer-server', [], { cwd: __dirname, stdio: 'inherit' });
   for (let attempt = 0; attempt < 30; attempt += 1) {
     await new Promise(resolve => setTimeout(resolve, 100));
     if (await bridgeIsRunning()) return;
