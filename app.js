@@ -236,52 +236,6 @@ function drawFlexEffects(now, ratio) {
   });
 }
 
-function drawEarbuds(results, transform, ratio) {
-  if (!musicControlActive) return;
-  const landmarks = results?.landmarks?.[0];
-  if (!landmarks) return;
-  const ears = [landmarks[7], landmarks[8]];
-  if (ears.some(ear => (ear.visibility ?? 1) < .55)) return;
-  const points = ears.map(ear => displayPoint(ear, transform));
-  const headWidth = distance(points[0], points[1]);
-  const size = Math.max(7 * ratio, Math.min(18 * ratio, headWidth * .075));
-  const centerX = (points[0].x + points[1].x) / 2;
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'screen';
-  ctx.lineCap = 'round';
-  points.forEach(point => {
-    const outward = point.x < centerX ? -1 : 1;
-    const x = point.x + outward * size * .24;
-    const y = point.y + size * .08;
-    const glow = ctx.createRadialGradient(x, y, 0, x, y, size * 1.5);
-    glow.addColorStop(0, '#b7ffe8ee');
-    glow.addColorStop(.38, '#4dffc2aa');
-    glow.addColorStop(1, '#20eaa000');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(x, y, size * 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#d8fff2';
-    ctx.strokeStyle = '#43ffbd';
-    ctx.lineWidth = 1.5 * ratio;
-    ctx.shadowColor = '#38ffae';
-    ctx.shadowBlur = 10 * ratio;
-    ctx.beginPath();
-    ctx.ellipse(x, y, size * .48, size * .65, outward * -.28, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x + outward * size * .08, y + size * .5);
-    ctx.lineTo(x + outward * size * .14, y + size * 1.35);
-    ctx.strokeStyle = '#b8ffe7';
-    ctx.lineWidth = size * .28;
-    ctx.stroke();
-  });
-  ctx.restore();
-}
-
 function clickAt(point, ratio) {
   const clientX = point.x / ratio;
   const clientY = point.y / ratio;
@@ -536,7 +490,6 @@ function drawResults(results, poseResults, now) {
     ? (bestGesture.categoryName === 'Open_Palm' ? 'OPEN HAND' : bestGesture.categoryName.replaceAll('_', ' '))
     : 'SEARCHING';
   confidenceState.textContent = bestGesture ? `${Math.round(bestGesture.score * 100)}%` : '—';
-  drawEarbuds(poseResults, transform, ratio);
   drawFlexEffects(now, ratio);
 }
 
