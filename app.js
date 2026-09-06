@@ -41,6 +41,9 @@ let latestPoseResults;
 let poseFrameCount = 0;
 let flexEffects = [];
 const flexLatched = { left: false, right: false };
+let fuzzBalls = [];
+let fuzzBounds = '';
+let previousHandPoints = [];
 let mirrored = true;
 let animationId;
 let previousVideoTime = -1;
@@ -236,6 +239,98 @@ function drawFlexEffects(now, ratio) {
   });
 }
 
+function closestPointOnSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const amount = lengthSquared
+    ? Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
+    : 0;
+  return { x: start.x + dx * amount, y: start.y + dy * amount };
+}
+
+function ensureFuzzBalls(width, height, ratio) {
+  const bounds = `${width}x${height}`;
+  if (fuzzBounds === bounds && fuzzBalls.length) return;
+  fuzzBounds = bounds;
+  const colors = ['#68ffd0', '#62d9ff', '#b790ff', '#ff8fd8'];
+  fuzzBalls = Array.from({ length: 34 }, (_, index) => ({
+    x: Math.random() * width,
+    y: Math.random() * height,
+    vx: (Math.random() - .5) * .55 * ratio,
+    vy: (Math.random() - .5) * .55 * ratio,
+    radius: (6 + Math.random() * 8) * ratio,
+    color: colors[index % colors.length],
+    phase: Math.random() * Math.PI * 2,
+  }));
+}
+
+function updateAndDrawFuzzBalls(results, transform, ratio, now) {
+  ensureFuzzBalls(overlay.width, overlay.height, ratio);
+  const hands = (results.landmarks || []).map(landmarks => landmarks.map(point => displayPoint(point, transform)));
+
+  fuzzBalls.forEach(ball => {
+    ball.vx += Math.cos(now * .0007 + ball.phase) * .012 * ratio;
+    ball.vy += Math.sin(now * .0006 + ball.phase) * .012 * ratio;
+    hands.forEach((points, handIndex) => {
+      const previous = previousHandPoints[handIndex];
+      connections.forEach(([from, to]) => {
+        const nearest = closestPointOnSegment(ball, points[from], points[to]);
+        const dx = ball.x - nearest.x;
+        const dy = ball.y - nearest.y;
+        const separation = Math.max(Math.hypot(dx, dy), .01);
+        const reach = ball.radius + 13 * ratio;
+        if (separation >= reach) return;
+        const handVx = previous ? ((points[from].x - previous[from].x) + (points[to].x - previous[to].x)) * .5 : 0;
+        const handVy = previous ? ((points[from].y - previous[from].y) + (points[to].y - previous[to].y)) * .5 : 0;
+        const pressure = 1 - separation / reach;
+        ball.vx += handVx * .24 + dx / separation * pressure * 2.4 * ratio;
+        ball.vy += handVy * .24 + dy / separation * pressure * 2.4 * ratio;
+      });
+    });
+    const speed = Math.hypot(ball.vx, ball.vy);
+    const maxSpeed = 22 * ratio;
+    if (speed > maxSpeed) {
+      ball.vx = ball.vx / speed * maxSpeed;
+      ball.vy = ball.vy / speed * maxSpeed;
+    }
+    ball.vx *= .975;
+    ball.vy *= .975;
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    if (ball.x < ball.radius || ball.x > overlay.width - ball.radius) {
+      ball.vx *= -.72;
+      ball.x = Math.max(ball.radius, Math.min(overlay.width - ball.radius, ball.x));
+    }
+    if (ball.y < ball.radius || ball.y > overlay.height - ball.radius) {
+      ball.vy *= -.72;
+      ball.y = Math.max(ball.radius, Math.min(overlay.height - ball.radius, ball.y));
+    }
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.shadowColor = ball.color;
+    ctx.shadowBlur = ball.radius * 1.5;
+    ctx.fillStyle = `${ball.color}55`;
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `${ball.color}aa`;
+    ctx.lineWidth = .8 * ratio;
+    for (let hair = 0; hair < 10; hair++) {
+      const angle = hair / 10 * Math.PI * 2 + ball.phase;
+      const inner = ball.radius * .72;
+      const outer = ball.radius * (1.15 + .16 * Math.sin(now * .003 + hair));
+      ctx.beginPath();
+      ctx.moveTo(ball.x + Math.cos(angle) * inner, ball.y + Math.sin(angle) * inner);
+      ctx.lineTo(ball.x + Math.cos(angle) * outer, ball.y + Math.sin(angle) * outer);
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+  previousHandPoints = hands;
+}
+
 function clickAt(point, ratio) {
   const clientX = point.x / ratio;
   const clientY = point.y / ratio;
@@ -372,6 +467,7 @@ function stopCamera() {
   latestPoseResults = undefined;
   poseFrameCount = 0;
   flexEffects = [];
+  previousHandPoints = [];
   flexLatched.left = flexLatched.right = false;
   setMusicControlActive(false);
 }
@@ -442,8 +538,10 @@ function drawBox(left, top, right, bottom, isOpen, score, ratio) {
 
 function drawResults(results, poseResults, now) {
   const ratio = window.devicePixelRatio || 1;
-  overlay.width = Math.round(stage.clientWidth * ratio);
-  overlay.height = Math.round(stage.clientHeight * ratio);
+  const width = Math.round(stage.clientWidth * ratio);
+  const height = Math.round(stage.clientHeight * ratio);
+  if (overlay.width !== width) overlay.width = width;
+  if (overlay.height !== height) overlay.height = height;
   ctx.clearRect(0, 0, overlay.width, overlay.height);
 
   const scale = Math.max(overlay.width / video.videoWidth, overlay.height / video.videoHeight);
@@ -455,6 +553,7 @@ function drawResults(results, poseResults, now) {
   transform.y = (overlay.height - transform.height) / 2;
   let bestGesture;
 
+  updateAndDrawFuzzBalls(results, transform, ratio, now);
   updateGestureControl(results, transform, ratio);
   updateFlexDetection(poseResults, transform, ratio);
 

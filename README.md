@@ -15,6 +15,8 @@ The Electron desktop overlay builds and starts the local Go control bridge, then
 
 The first load downloads Google's gesture- and pose-recognition models. Hold an open palm toward the camera to display the green recognition box and HUD confidence score. Bend either arm into a bicep flex to emit a holographic energy burst from the tracked upper arm; relax the arm before flexing again.
 
+Floating fuzz particles drift across the display and collide only with the tracked hand wireframes. Sweep a hand through them to scatter them with the motion of the gesture.
+
 ## Gesture controls
 
 - Hold an open palm steady for one second to enter or leave music control mode.
