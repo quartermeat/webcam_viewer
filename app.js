@@ -45,6 +45,8 @@ let musicControlActive = false;
 let palmHoldStarted = 0;
 let palmLatched = false;
 let pinchLatched = false;
+let volumeGestureLatched = false;
+let volumeStatusTimer;
 let cursorPoint;
 let lastClickAt = 0;
 let lastTranscript = '';
@@ -101,12 +103,33 @@ function setMusicControlActive(active) {
   app.classList.toggle('music-control-active', active);
   controlState.textContent = active ? 'MUSIC ACTIVE' : 'OBSERVE';
   if (!active) {
+    window.clearTimeout(volumeStatusTimer);
     gestureCursor.classList.remove('pinching');
     gestureCursor.style.display = 'none';
     pinchLatched = false;
+    volumeGestureLatched = false;
   } else {
     gestureCursor.style.display = '';
   }
+}
+
+async function changeVolume(direction) {
+  controlState.textContent = direction === 'up' ? 'VOLUME UP' : 'VOLUME DOWN';
+  try {
+    const response = await fetch('/api/volume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction }),
+    });
+    if (!response.ok) throw new Error(`Volume bridge returned ${response.status}`);
+  } catch (error) {
+    controlState.textContent = 'VOLUME ERROR';
+    logError('Could not change system volume', error);
+  }
+  window.clearTimeout(volumeStatusTimer);
+  volumeStatusTimer = window.setTimeout(() => {
+    if (musicControlActive) controlState.textContent = 'MUSIC ACTIVE';
+  }, 700);
 }
 
 function distance(a, b) {
@@ -128,6 +151,10 @@ function updateGestureControl(results, transform, ratio) {
   const landmarks = results.landmarks?.[0];
   const gesture = results.gestures?.[0]?.[0];
   const isOpen = gesture?.categoryName === 'Open_Palm' && gesture.score >= .65;
+  const volumeDirection = gesture?.score >= .65 && {
+    Thumb_Up: 'up',
+    Thumb_Down: 'down',
+  }[gesture.categoryName];
   const now = performance.now();
 
   if (isOpen && !palmLatched) {
@@ -144,6 +171,13 @@ function updateGestureControl(results, transform, ratio) {
     palmHoldStarted = 0;
     palmLatched = false;
     activationMeter.style.setProperty('--activation', '0%');
+  }
+
+  if (musicControlActive && volumeDirection && !volumeGestureLatched) {
+    volumeGestureLatched = true;
+    changeVolume(volumeDirection);
+  } else if (!volumeDirection) {
+    volumeGestureLatched = false;
   }
 
   if (!musicControlActive || !landmarks) {

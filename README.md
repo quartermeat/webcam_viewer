@@ -8,7 +8,7 @@ recognition; Voxtype mirrors completed speech into the transcript panel.
 
 ```bash
 cd /home/quartermeat/work/webcam_viewer
-python3 -m http.server 8090 --bind 127.0.0.1
+python3 server.py
 ```
 
 Open <http://127.0.0.1:8090/> and allow camera access when prompted.
@@ -18,6 +18,7 @@ The first load downloads Google's gesture-recognition model. Hold an open palm t
 ## Gesture controls
 
 - Hold an open palm steady for one second to enter or leave music control mode.
+- While music control is active, show a thumb up or thumb down to change system volume by 5%. Return to a neutral hand position before each additional step.
 - In music control mode, move your index fingertip to position the virtual cursor.
 - Touch your thumb and index fingertip together to click a button.
 - Press Escape to disable music control mode immediately.
