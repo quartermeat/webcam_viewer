@@ -1,4 +1,4 @@
-import { FilesetResolver, GestureRecognizer } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
+import { FilesetResolver, GestureRecognizer, PoseLandmarker } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
 
 const $ = selector => document.querySelector(selector);
 const video = $('#video');
@@ -36,6 +36,11 @@ const connections = [
 
 let stream;
 let recognizer;
+let poseRecognizer;
+let latestPoseResults;
+let poseFrameCount = 0;
+let flexEffects = [];
+const flexLatched = { left: false, right: false };
 let mirrored = true;
 let animationId;
 let previousVideoTime = -1;
@@ -157,6 +162,80 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function jointAngle(a, b, c) {
+  const first = { x: a.x - b.x, y: a.y - b.y };
+  const second = { x: c.x - b.x, y: c.y - b.y };
+  const cosine = (first.x * second.x + first.y * second.y)
+    / Math.max(Math.hypot(first.x, first.y) * Math.hypot(second.x, second.y), .0001);
+  return Math.acos(Math.max(-1, Math.min(1, cosine))) * 180 / Math.PI;
+}
+
+function triggerFlexEffect(point, ratio) {
+  flexEffects.push({
+    startedAt: performance.now(),
+    point,
+    particles: Array.from({ length: 14 }, (_, index) => {
+      const angle = index / 14 * Math.PI * 2 + Math.random() * .28;
+      const speed = (35 + Math.random() * 65) * ratio;
+      return { angle, speed, size: (1.8 + Math.random() * 2.8) * ratio };
+    }),
+  });
+}
+
+function updateFlexDetection(results, transform, ratio) {
+  const landmarks = results?.landmarks?.[0];
+  if (!landmarks) return;
+  [
+    ['left', 11, 13, 15],
+    ['right', 12, 14, 16],
+  ].forEach(([side, shoulderIndex, elbowIndex, wristIndex]) => {
+    const shoulder = landmarks[shoulderIndex];
+    const elbow = landmarks[elbowIndex];
+    const wrist = landmarks[wristIndex];
+    if ([shoulder, elbow, wrist].some(point => (point.visibility ?? 1) < .6)) return;
+    const angle = jointAngle(shoulder, elbow, wrist);
+    const flexing = angle < 72 && wrist.y < elbow.y + .08;
+    if (flexing && !flexLatched[side]) {
+      const upperArm = {
+        x: shoulder.x * .46 + elbow.x * .54,
+        y: shoulder.y * .46 + elbow.y * .54,
+      };
+      triggerFlexEffect(displayPoint(upperArm, transform), ratio);
+      flexLatched[side] = true;
+    } else if (angle > 112) {
+      flexLatched[side] = false;
+    }
+  });
+}
+
+function drawFlexEffects(now, ratio) {
+  flexEffects = flexEffects.filter(effect => now - effect.startedAt < 950);
+  flexEffects.forEach(effect => {
+    const progress = (now - effect.startedAt) / 950;
+    const alpha = 1 - progress;
+    const radius = (18 + progress * 78) * ratio;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.strokeStyle = `rgba(92, 255, 190, ${alpha})`;
+    ctx.lineWidth = Math.max(1, 4 * (1 - progress) * ratio);
+    ctx.shadowColor = '#39ffad';
+    ctx.shadowBlur = 18 * ratio;
+    ctx.beginPath();
+    ctx.arc(effect.point.x, effect.point.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    effect.particles.forEach(particle => {
+      const travel = particle.speed * progress;
+      const x = effect.point.x + Math.cos(particle.angle) * travel;
+      const y = effect.point.y + Math.sin(particle.angle) * travel;
+      ctx.fillStyle = `rgba(132, 255, 211, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, particle.size * alpha, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  });
+}
+
 function clickAt(point, ratio) {
   const clientX = point.x / ratio;
   const clientY = point.y / ratio;
@@ -254,7 +333,24 @@ async function loadRecognizer() {
       minHandPresenceConfidence: 0.55,
       minTrackingConfidence: 0.55,
     });
-    modelState.textContent = 'Vision ready';
+    modelState.textContent = 'Hands ready';
+    try {
+      poseRecognizer = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+        minPoseDetectionConfidence: .55,
+        minPosePresenceConfidence: .55,
+        minTrackingConfidence: .55,
+      });
+      modelState.textContent = 'Vision ready';
+    } catch (error) {
+      modelState.textContent = 'Hands only';
+      logError('Pose recognition could not load', error);
+    }
   } catch (error) {
     modelState.textContent = 'Vision error';
     logError('Hand recognition could not load', error);
@@ -273,6 +369,10 @@ function stopCamera() {
   emptyState.classList.remove('hidden');
   gestureState.textContent = confidenceState.textContent = cameraState.textContent = '—';
   fpsState.textContent = '0';
+  latestPoseResults = undefined;
+  poseFrameCount = 0;
+  flexEffects = [];
+  flexLatched.left = flexLatched.right = false;
   setMusicControlActive(false);
 }
 
@@ -340,7 +440,7 @@ function drawBox(left, top, right, bottom, isOpen, score, ratio) {
   ctx.fillText(isOpen ? `OPEN HAND  ${Math.round(score * 100)}%` : 'HAND TRACKING', left, Math.max(18 * ratio, top - 8 * ratio));
 }
 
-function drawResults(results) {
+function drawResults(results, poseResults, now) {
   const ratio = window.devicePixelRatio || 1;
   overlay.width = Math.round(stage.clientWidth * ratio);
   overlay.height = Math.round(stage.clientHeight * ratio);
@@ -356,6 +456,7 @@ function drawResults(results) {
   let bestGesture;
 
   updateGestureControl(results, transform, ratio);
+  updateFlexDetection(poseResults, transform, ratio);
 
   (results.landmarks || []).forEach((landmarks, index) => {
     const gesture = results.gestures?.[index]?.[0];
@@ -389,15 +490,19 @@ function drawResults(results) {
     ? (bestGesture.categoryName === 'Open_Palm' ? 'OPEN HAND' : bestGesture.categoryName.replaceAll('_', ' '))
     : 'SEARCHING';
   confidenceState.textContent = bestGesture ? `${Math.round(bestGesture.score * 100)}%` : '—';
+  drawFlexEffects(now, ratio);
 }
 
 function detectFrame() {
   if (!stream) return;
   if (recognizer && video.readyState >= 2 && video.currentTime !== previousVideoTime) {
     previousVideoTime = video.currentTime;
-    drawResults(recognizer.recognizeForVideo(video, performance.now()));
-    frameCount++;
     const now = performance.now();
+    if (poseRecognizer && poseFrameCount++ % 2 === 0) {
+      latestPoseResults = poseRecognizer.detectForVideo(video, now);
+    }
+    drawResults(recognizer.recognizeForVideo(video, now), latestPoseResults, now);
+    frameCount++;
     if (now - fpsWindowStart >= 500) {
       fpsState.textContent = Math.round(frameCount * 1000 / (now - fpsWindowStart));
       frameCount = 0;

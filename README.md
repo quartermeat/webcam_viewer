@@ -13,7 +13,7 @@ npm start
 
 The Electron desktop overlay builds and starts the local Go control bridge, then opens a transparent window. Allow camera access when prompted. For browser-only development, run `npm run serve` and open <http://127.0.0.1:8090/>; browser windows do not expose the desktop through transparent page backgrounds.
 
-The first load downloads Google's gesture-recognition model. Hold an open palm toward the camera to display the green recognition box and HUD confidence score.
+The first load downloads Google's gesture- and pose-recognition models. Hold an open palm toward the camera to display the green recognition box and HUD confidence score. Bend either arm into a bicep flex to emit a holographic energy burst from the tracked upper arm; relax the arm before flexing again.
 
 ## Gesture controls
 
