@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local static server with a narrowly scoped system-volume bridge."""
+"""Local static server with narrowly scoped audio-control bridges."""
 
 import json
 import subprocess
@@ -9,6 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 HOST = "127.0.0.1"
 PORT = 8090
 VOLUME_STEPS = {"up": "5%+", "down": "5%-"}
+MEDIA_ACTIONS = {"next": "next", "previous": "previous"}
 
 
 class InterfaceHandler(SimpleHTTPRequestHandler):
@@ -22,7 +23,7 @@ class InterfaceHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path != "/api/volume":
+        if self.path not in {"/api/volume", "/api/media"}:
             self.send_json(404, {"error": "Not found"})
             return
 
@@ -39,26 +40,37 @@ class InterfaceHandler(SimpleHTTPRequestHandler):
             if length > 256:
                 raise ValueError("Request too large")
             payload = json.loads(self.rfile.read(length))
-            direction = payload.get("direction")
-            step = VOLUME_STEPS[direction]
-            subprocess.run(
-                ["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", step],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            result = subprocess.run(
-                ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            self.send_json(200, {"direction": direction, "volume": result.stdout.strip()})
+            if self.path == "/api/volume":
+                direction = payload.get("direction")
+                step = VOLUME_STEPS[direction]
+                subprocess.run(
+                    ["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", step],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                result = subprocess.run(
+                    ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                self.send_json(200, {"direction": direction, "volume": result.stdout.strip()})
+            else:
+                action = payload.get("action")
+                command = MEDIA_ACTIONS[action]
+                subprocess.run(
+                    ["playerctl", command],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                self.send_json(200, {"action": action})
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
-            self.send_json(400, {"error": "direction must be 'up' or 'down'"})
+            self.send_json(400, {"error": "Unsupported audio-control command"})
         except (OSError, subprocess.CalledProcessError) as error:
-            self.log_error("volume command failed: %s", error)
-            self.send_json(503, {"error": "Volume control unavailable"})
+            self.log_error("audio command failed: %s", error)
+            self.send_json(503, {"error": "Audio control unavailable"})
 
 
 if __name__ == "__main__":

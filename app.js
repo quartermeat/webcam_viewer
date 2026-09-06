@@ -46,7 +46,8 @@ let palmHoldStarted = 0;
 let palmLatched = false;
 let pinchLatched = false;
 let volumeGestureLatched = false;
-let volumeStatusTimer;
+let mediaGestureLatched = false;
+let controlStatusTimer;
 let cursorPoint;
 let lastClickAt = 0;
 let lastTranscript = '';
@@ -103,11 +104,12 @@ function setMusicControlActive(active) {
   app.classList.toggle('music-control-active', active);
   controlState.textContent = active ? 'MUSIC ACTIVE' : 'OBSERVE';
   if (!active) {
-    window.clearTimeout(volumeStatusTimer);
+    window.clearTimeout(controlStatusTimer);
     gestureCursor.classList.remove('pinching');
     gestureCursor.style.display = 'none';
     pinchLatched = false;
     volumeGestureLatched = false;
+    mediaGestureLatched = false;
   } else {
     gestureCursor.style.display = '';
   }
@@ -126,8 +128,27 @@ async function changeVolume(direction) {
     controlState.textContent = 'VOLUME ERROR';
     logError('Could not change system volume', error);
   }
-  window.clearTimeout(volumeStatusTimer);
-  volumeStatusTimer = window.setTimeout(() => {
+  window.clearTimeout(controlStatusTimer);
+  controlStatusTimer = window.setTimeout(() => {
+    if (musicControlActive) controlState.textContent = 'MUSIC ACTIVE';
+  }, 700);
+}
+
+async function changeTrack(action) {
+  controlState.textContent = action === 'next' ? 'NEXT TRACK' : 'PREVIOUS TRACK';
+  try {
+    const response = await fetch('/api/media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    if (!response.ok) throw new Error(`Media bridge returned ${response.status}`);
+  } catch (error) {
+    controlState.textContent = 'MEDIA ERROR';
+    logError('Could not change track', error);
+  }
+  window.clearTimeout(controlStatusTimer);
+  controlStatusTimer = window.setTimeout(() => {
     if (musicControlActive) controlState.textContent = 'MUSIC ACTIVE';
   }, 700);
 }
@@ -155,6 +176,10 @@ function updateGestureControl(results, transform, ratio) {
     Thumb_Up: 'up',
     Thumb_Down: 'down',
   }[gesture.categoryName];
+  const mediaAction = gesture?.score >= .65 && {
+    Victory: 'next',
+    Closed_Fist: 'previous',
+  }[gesture.categoryName];
   const now = performance.now();
 
   if (isOpen && !palmLatched) {
@@ -180,8 +205,19 @@ function updateGestureControl(results, transform, ratio) {
     volumeGestureLatched = false;
   }
 
+  if (musicControlActive && mediaAction && !mediaGestureLatched) {
+    mediaGestureLatched = true;
+    changeTrack(mediaAction);
+  } else if (!mediaAction) {
+    mediaGestureLatched = false;
+  }
+
   if (!musicControlActive || !landmarks) {
     if (musicControlActive) gestureCursor.style.display = 'none';
+    return;
+  }
+  if (volumeDirection || mediaAction) {
+    gestureCursor.style.display = 'none';
     return;
   }
 

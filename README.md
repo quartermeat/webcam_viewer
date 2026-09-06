@@ -19,6 +19,7 @@ The first load downloads Google's gesture-recognition model. Hold an open palm t
 
 - Hold an open palm steady for one second to enter or leave music control mode.
 - While music control is active, show a thumb up or thumb down to change system volume by 5%. Return to a neutral hand position before each additional step.
+- Show a victory sign to skip to the next track or a closed fist to return to the previous track. Return to a neutral hand position before repeating either action.
 - In music control mode, move your index fingertip to position the virtual cursor.
 - Touch your thumb and index fingertip together to click a button.
 - Press Escape to disable music control mode immediately.
