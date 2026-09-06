@@ -159,7 +159,11 @@ video.mirrored { transform: scaleX(-1); }
   box-shadow: 0 12px 32px #0007, 0 0 22px #2cff9b14;
   font-family: ui-monospace, monospace;
   pointer-events: none;
+  opacity: 0;
+  transform: translateX(18px);
+  transition: opacity 180ms ease, transform 180ms ease;
 }
+.now-playing.gesture-visible { opacity: 1; transform: translateX(0); }
 .sound-mark {
   display: flex;
   align-items: center;

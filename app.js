@@ -99,6 +99,7 @@ async function updateNowPlaying() {
 function setControlActive(active) {
   controlActive = active;
   app.classList.toggle('control-active', active);
+  nowPlaying.classList.toggle('gesture-visible', active);
   controlState.textContent = active ? 'CONTROL ACTIVE' : 'OBSERVE';
   if (!active) {
     gestureCursor.classList.remove('pinching');
