@@ -32,6 +32,8 @@ Camera access works on `localhost`/`127.0.0.1` because browsers treat them as a 
 
 ## Streaming with OBS
 
-Start the overlay with `npm start`, then launch the configured OBS collection with `npm run obs`. The `Webcam Overlay Stream` profile uses a 1920×1080 canvas at 30 FPS with NVIDIA NVENC, 6000 Kbps video, 160 Kbps audio, full-desktop XSHM capture, default desktop audio, and the default microphone.
+Run `npm run stream` to install the versioned OBS templates, start the overlay when needed, and launch the configured collection. Use `npm run obs:setup` to install only the OBS files or `npm run obs` to open an already-installed setup. The installer is idempotent and backs up conflicting scene/profile files before replacing them.
+
+The `Webcam Overlay Stream` profile uses a 1920×1080 canvas at 30 FPS with NVIDIA NVENC, 6000 Kbps video, 160 Kbps audio, the tuned full-desktop XSHM crop, default desktop audio, and the default microphone. Stream-service credentials are intentionally excluded from the repository.
 
 OBS captures the complete 3440×1440 desktop inside the 16:9 canvas without stretching it. Minimize OBS or move it to another workspace to keep its preview out of the capture. Choose a streaming service and authenticate in OBS before using **Start Streaming**; account credentials are not stored in this project.

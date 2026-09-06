@@ -1,0 +1,15 @@
+{
+  "DesktopAudioDevice1":{"prev_ver":503447555,"name":"Desktop Audio","uuid":"f283d18d-dbf3-4fb3-8e48-3d0bdd438ac3","id":"pulse_output_capture","versioned_id":"pulse_output_capture","settings":{"device_id":"default"},"mixers":255,"sync":0,"flags":0,"volume":1.0,"balance":0.5,"enabled":true,"muted":false,"hotkeys":{},"monitoring_type":0,"private_settings":{}},
+  "AuxAudioDevice1":{"prev_ver":503447555,"name":"Mic/Aux","uuid":"56fdf15d-5360-4b5a-9f01-759dd551923f","id":"pulse_input_capture","versioned_id":"pulse_input_capture","settings":{"device_id":"default"},"mixers":255,"sync":0,"flags":0,"volume":1.0,"balance":0.5,"enabled":true,"muted":false,"hotkeys":{},"monitoring_type":0,"private_settings":{}},
+  "current_scene":"Desktop + Interface",
+  "current_program_scene":"Desktop + Interface",
+  "scene_order":[{"name":"Desktop + Interface"}],
+  "name":"Webcam Overlay Stream",
+  "sources":[
+    {"prev_ver":503447555,"name":"Desktop + Interface","uuid":"6b3beb0d-e9b2-4ab3-8dda-9c4f9709df9c","id":"scene","versioned_id":"scene","settings":{"id_counter":1,"custom_size":false,"items":[{"name":"Full Desktop (XSHM)","source_uuid":"7a96c4be-ce30-4adf-aa21-f9dffe3d6b89","visible":true,"locked":true,"rot":0.0,"pos":{"x":0.0,"y":0.0},"scale":{"x":1.0,"y":1.0},"align":5,"bounds_type":2,"bounds_align":0,"bounds_crop":false,"bounds":{"x":1920.0,"y":1080.0},"crop_left":0,"crop_top":0,"crop_right":0,"crop_bottom":0,"id":1,"scale_filter":"bicubic","blend_method":"default","blend_type":"normal","private_settings":{}}]},"mixers":0,"sync":0,"flags":0,"volume":1.0,"balance":0.5,"enabled":true,"muted":false,"hotkeys":{},"monitoring_type":0,"private_settings":{}},
+    {"prev_ver":503447555,"name":"Full Desktop (XSHM)","uuid":"7a96c4be-ce30-4adf-aa21-f9dffe3d6b89","id":"xshm_input","versioned_id":"xshm_input","settings":{"screen":0,"show_cursor":true,"advanced":true,"cut_bot":132,"cut_right":1713,"cut_top":57},"mixers":0,"sync":0,"flags":0,"volume":1.0,"balance":0.5,"enabled":true,"muted":false,"hotkeys":{},"monitoring_type":0,"private_settings":{}}
+  ],
+  "groups":[],
+  "quick_transitions":[{"name":"Cut","duration":300,"hotkeys":[],"id":1,"fade_to_black":false},{"name":"Fade","duration":300,"hotkeys":[],"id":2,"fade_to_black":false}],
+  "transitions":[],"saved_projectors":[],"current_transition":"Fade","transition_duration":300,"preview_locked":false,"scaling_enabled":false,"modules":{}
+}
