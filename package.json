@@ -1,9 +1,11 @@
 {
   "name": "webcam_viewer",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A small local web app that displays a live webcam feed.",
-  "main": "app.js",
+  "main": "electron-main.js",
   "scripts": {
+    "start": "electron .",
+    "serve": "python3 server.py",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -11,5 +13,8 @@
   "license": "ISC",
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1"
+  },
+  "devDependencies": {
+    "electron": "^44.2.0"
   }
 }

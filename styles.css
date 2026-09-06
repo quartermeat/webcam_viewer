@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  background: #070b12;
+  background: transparent;
   color: #eef6ff;
 }
 
@@ -11,10 +11,7 @@ body {
   margin: 0;
   min-height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 80% 10%, #12354a 0, transparent 32rem),
-    radial-gradient(circle at 10% 90%, #102b27 0, transparent 28rem),
-    #070b12;
+  background: transparent;
 }
 
 .app { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
@@ -55,7 +52,7 @@ header {
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: #020408;
+  background: transparent;
 }
 
 video {
@@ -63,8 +60,8 @@ video {
   height: 100%;
   object-fit: cover;
   display: block;
-  opacity: .52;
-  filter: saturate(.68) contrast(1.08) brightness(.72);
+  opacity: .38;
+  filter: saturate(.72) contrast(1.08) brightness(.82);
 }
 video.mirrored { transform: scaleX(-1); }
 

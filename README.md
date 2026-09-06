@@ -8,10 +8,10 @@ recognition; Voxtype mirrors completed speech into the transcript panel.
 
 ```bash
 cd /home/quartermeat/work/webcam_viewer
-python3 server.py
+npm start
 ```
 
-Open <http://127.0.0.1:8090/> and allow camera access when prompted.
+The Electron desktop overlay starts the local control bridge and opens a transparent window. Allow camera access when prompted. For browser-only development, run `npm run serve` and open <http://127.0.0.1:8090/>; browser windows do not expose the desktop through transparent page backgrounds.
 
 The first load downloads Google's gesture-recognition model. Hold an open palm toward the camera to display the green recognition box and HUD confidence score.
 
