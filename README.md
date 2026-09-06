@@ -17,10 +17,10 @@ The first load downloads Google's gesture-recognition model. Hold an open palm t
 
 ## Gesture controls
 
-- Hold an open palm steady for one second to enter or leave control mode.
-- In control mode, move your index fingertip to position the virtual cursor.
+- Hold an open palm steady for one second to enter or leave music control mode.
+- In music control mode, move your index fingertip to position the virtual cursor.
 - Touch your thumb and index fingertip together to click a button.
-- Press Escape to disable control mode immediately.
+- Press Escape to disable music control mode immediately.
 
 Gesture control is intentionally limited to this app while tracking behavior is tuned. It does not control the system pointer yet.
 

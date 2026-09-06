@@ -41,7 +41,7 @@ let animationId;
 let previousVideoTime = -1;
 let frameCount = 0;
 let fpsWindowStart = performance.now();
-let controlActive = false;
+let musicControlActive = false;
 let palmHoldStarted = 0;
 let palmLatched = false;
 let pinchLatched = false;
@@ -96,11 +96,10 @@ async function updateNowPlaying() {
   }
 }
 
-function setControlActive(active) {
-  controlActive = active;
-  app.classList.toggle('control-active', active);
-  nowPlaying.classList.toggle('gesture-visible', active);
-  controlState.textContent = active ? 'CONTROL ACTIVE' : 'OBSERVE';
+function setMusicControlActive(active) {
+  musicControlActive = active;
+  app.classList.toggle('music-control-active', active);
+  controlState.textContent = active ? 'MUSIC ACTIVE' : 'OBSERVE';
   if (!active) {
     gestureCursor.classList.remove('pinching');
     gestureCursor.style.display = 'none';
@@ -136,7 +135,7 @@ function updateGestureControl(results, transform, ratio) {
     const progress = Math.min(1, (now - palmHoldStarted) / 1000);
     activationMeter.style.setProperty('--activation', `${progress * 100}%`);
     if (progress === 1) {
-      setControlActive(!controlActive);
+      setMusicControlActive(!musicControlActive);
       palmLatched = true;
       palmHoldStarted = 0;
       activationMeter.style.setProperty('--activation', '0%');
@@ -147,8 +146,8 @@ function updateGestureControl(results, transform, ratio) {
     activationMeter.style.setProperty('--activation', '0%');
   }
 
-  if (!controlActive || !landmarks) {
-    if (controlActive) gestureCursor.style.display = 'none';
+  if (!musicControlActive || !landmarks) {
+    if (musicControlActive) gestureCursor.style.display = 'none';
     return;
   }
 
@@ -204,7 +203,7 @@ function stopCamera() {
   emptyState.classList.remove('hidden');
   gestureState.textContent = confidenceState.textContent = cameraState.textContent = '—';
   fpsState.textContent = '0';
-  setControlActive(false);
+  setMusicControlActive(false);
 }
 
 async function listCameras() {
@@ -354,7 +353,7 @@ document.addEventListener('fullscreenchange', () => {
   $('#fullscreenButton').textContent = document.fullscreenElement ? 'Exit interface' : 'Enter interface';
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && controlActive) setControlActive(false);
+  if (event.key === 'Escape' && musicControlActive) setMusicControlActive(false);
 });
 window.addEventListener('beforeunload', stopCamera);
 
