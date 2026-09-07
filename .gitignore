@@ -4,3 +4,6 @@ now-playing.json
 *.log
 certs/
 bin/
+android/.gradle/
+android/**/build/
+android/local.properties

@@ -38,7 +38,8 @@ public final class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 // The workstation uses a self-signed LAN certificate during development.
-                if (BuildConfig.DEBUG) handler.proceed(); else handler.cancel();
+                boolean debug = (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+                if (debug) handler.proceed(); else handler.cancel();
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { view.loadUrl(request.getUrl().toString()); return true; }
         });
