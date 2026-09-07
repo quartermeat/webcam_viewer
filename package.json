@@ -10,7 +10,7 @@
     "obs:setup": "./scripts/setup-obs.sh",
     "stream": "./scripts/launch-streaming.sh",
     "serve": "npm run build:bridge && ./bin/webcam-viewer-server",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test gesture-controls.test.mjs"
   },
   "keywords": [],
   "author": "",

@@ -15,16 +15,21 @@ The Electron desktop overlay builds and starts the local Go control bridge, then
 
 The first load downloads Google's gesture- and pose-recognition models. Hold an open palm toward the camera to display the green recognition box and HUD confidence score. Bend either arm into a bicep flex to emit a holographic energy burst from the tracked upper arm; relax the arm before flexing again.
 
-Floating fuzz particles drift across the display and collide only with the tracked hand wireframes. Sweep a hand through them to scatter them with the motion of the gesture.
+Floating fuzzballs home in on your tracked nose, bounce away on impact, and circle back for another attack. A dedicated short-range face detector downloads on first load and tracks the nose in close-up webcam views, with pose tracking as a fallback. The nose target stays invisible; the system readout shows `Swarm locked` when acquired or `Searching face` when lost. When nose tracking is lost, they drift freely. Sweep a hand through them to scatter or deflect them with the tracked hand wireframes.
 
 ## Gesture controls
 
+The **Fuzzballs** button cycles **Attack nose → Drift → Freeze** independently of music control. Attack seeks your invisible nose target; Drift lets balls float and respond to your hands; Freeze holds their positions. The FUZZBALLS HUD shows the selected behavior and whether an attack has acquired a target. Reloading starts in Attack nose mode.
+
 - Hold an open palm steady for one second to enter or leave music control mode.
+- Hold an OK sign (thumb and index touching, other three fingers extended) for one second to enter or leave fuzzball control. Release the sign before toggling again. Music and fuzzball control are mutually exclusive.
+- Either tracked hand can switch modes. The gesture readout shows `OK SIGN` or `OPEN HAND`, with `HOLD 1 SEC` followed by `ACCEPTED`. Brief tracking gaps are tolerated; release for at least a quarter second before repeating a sign.
+- In fuzzball control, peace/victory cycles forward through Attack nose, Drift, and Freeze; a closed fist cycles backward. Return to neutral between steps. Exiting control leaves the selected behavior running.
 - While music control is active, show a thumb up or thumb down to change system volume by 5%. Return to a neutral hand position before each additional step.
 - Show a victory sign to skip to the next track or a closed fist to return to the previous track. Return to a neutral hand position before repeating either action.
 - In music control mode, move your index fingertip to position the virtual cursor.
 - Touch your thumb and index fingertip together to click a button.
-- Press Escape to disable music control mode immediately.
+- Press Escape to leave either hand-control mode immediately.
 
 Gesture control is intentionally limited to this app while tracking behavior is tuned. It does not control the system pointer yet.
 

@@ -1,4 +1,5 @@
-import { FilesetResolver, GestureRecognizer, PoseLandmarker } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
+import { FilesetResolver, GestureRecognizer, PoseLandmarker, FaceDetector } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
+import { classifyControlHand, createControlHold, updateControlHold } from './gesture-controls.mjs';
 
 const $ = selector => document.querySelector(selector);
 const video = $('#video');
@@ -17,6 +18,10 @@ const cameraState = $('#cameraState');
 const fpsState = $('#fpsState');
 const app = $('.app');
 const controlState = $('#controlState');
+const fuzzState = $('#fuzzState');
+const fuzzModeButton = $('#fuzzModeButton');
+const fuzzModes = ['attack nose', 'drift', 'freeze'];
+let fuzzMode = 'attack nose';
 const activationMeter = $('#activationMeter');
 const gestureCursor = $('#gestureCursor');
 const transcriptPanel = $('.transcript-panel');
@@ -37,6 +42,8 @@ const connections = [
 let stream;
 let recognizer;
 let poseRecognizer;
+let faceDetector;
+let latestFaceResults;
 let latestPoseResults;
 let poseFrameCount = 0;
 let flexEffects = [];
@@ -50,8 +57,8 @@ let previousVideoTime = -1;
 let frameCount = 0;
 let fpsWindowStart = performance.now();
 let musicControlActive = false;
-let palmHoldStarted = 0;
-let palmLatched = false;
+let fuzzControlActive = false;
+const controlHold = createControlHold();
 let pinchLatched = false;
 let volumeGestureLatched = false;
 let mediaGestureLatched = false;
@@ -108,6 +115,7 @@ async function updateNowPlaying() {
 }
 
 function setMusicControlActive(active) {
+  fuzzControlActive = false;
   musicControlActive = active;
   app.classList.toggle('music-control-active', active);
   controlState.textContent = active ? 'MUSIC ACTIVE' : 'OBSERVE';
@@ -121,6 +129,12 @@ function setMusicControlActive(active) {
   } else {
     gestureCursor.style.display = '';
   }
+}
+
+function setFuzzControlActive(active) {
+  setMusicControlActive(false);
+  fuzzControlActive = active;
+  controlState.textContent = active ? 'FUZZBALL ACTIVE' : 'OBSERVE';
 }
 
 async function changeVolume(direction) {
@@ -265,13 +279,38 @@ function ensureFuzzBalls(width, height, ratio) {
   }));
 }
 
-function updateAndDrawFuzzBalls(results, transform, ratio, now) {
+function updateAndDrawFuzzBalls(results, poseResults, transform, ratio, now) {
   ensureFuzzBalls(overlay.width, overlay.height, ratio);
   const hands = (results.landmarks || []).map(landmarks => landmarks.map(point => displayPoint(point, transform)));
+  // Face keypoint two and pose landmark zero are the nose; keep the target invisible.
+  const poseNose = poseResults?.landmarks?.[0]?.[0];
+  const nose = latestFaceResults?.detections?.[0]?.keypoints?.[2]
+    || (poseNose?.visibility >= .6 ? poseNose : null);
+  const target = nose && Number.isFinite(nose.x) && Number.isFinite(nose.y)
+    ? displayPoint(nose, transform) : null;
+  fuzzState.textContent = fuzzMode === 'attack nose'
+    ? (target ? 'ATTACK · LOCKED' : 'ATTACK · SEARCHING')
+    : fuzzMode.toUpperCase();
 
-  fuzzBalls.forEach(ball => {
+  function updateMotion(ball) {
+    if (fuzzMode === 'freeze') return;
     ball.vx += Math.cos(now * .0007 + ball.phase) * .012 * ratio;
     ball.vy += Math.sin(now * .0006 + ball.phase) * .012 * ratio;
+    if (fuzzMode === 'attack nose' && target && now >= (ball.retreatUntil || 0)) {
+      const dx = target.x - ball.x;
+      const dy = target.y - ball.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance < ball.radius + 12 * ratio) {
+        // Bounce away on impact, then turn around for another attack.
+        const angle = Math.atan2(-dy, -dx) + (Math.random() - .5) * .8;
+        ball.vx = Math.cos(angle) * 9 * ratio;
+        ball.vy = Math.sin(angle) * 9 * ratio;
+        ball.retreatUntil = now + 350 + Math.random() * 350;
+      } else {
+        ball.vx += dx / distance * .48 * ratio;
+        ball.vy += dy / distance * .48 * ratio;
+      }
+    }
     hands.forEach((points, handIndex) => {
       const previous = previousHandPoints[handIndex];
       connections.forEach(([from, to]) => {
@@ -307,6 +346,10 @@ function updateAndDrawFuzzBalls(results, transform, ratio, now) {
       ball.y = Math.max(ball.radius, Math.min(overlay.height - ball.radius, ball.y));
     }
 
+  }
+
+  fuzzBalls.forEach(ball => {
+    updateMotion(ball);
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     ctx.shadowColor = ball.color;
@@ -345,7 +388,10 @@ function clickAt(point, ratio) {
 function updateGestureControl(results, transform, ratio) {
   const landmarks = results.landmarks?.[0];
   const gesture = results.gestures?.[0]?.[0];
-  const isOpen = gesture?.categoryName === 'Open_Palm' && gesture.score >= .65;
+  const controlSigns = (results.landmarks || []).map((points, index) =>
+    classifyControlHand(points, results.gestures?.[index]?.[0]));
+  const isOk = controlSigns.includes('ok');
+  const controlSign = isOk ? 'ok' : controlSigns.includes('palm') ? 'palm' : null;
   const volumeDirection = gesture?.score >= .65 && {
     Thumb_Up: 'up',
     Thumb_Down: 'down',
@@ -356,21 +402,10 @@ function updateGestureControl(results, transform, ratio) {
   }[gesture.categoryName];
   const now = performance.now();
 
-  if (isOpen && !palmLatched) {
-    if (!palmHoldStarted) palmHoldStarted = now;
-    const progress = Math.min(1, (now - palmHoldStarted) / 1000);
-    activationMeter.style.setProperty('--activation', `${progress * 100}%`);
-    if (progress === 1) {
-      setMusicControlActive(!musicControlActive);
-      palmLatched = true;
-      palmHoldStarted = 0;
-      activationMeter.style.setProperty('--activation', '0%');
-    }
-  } else if (!isOpen) {
-    palmHoldStarted = 0;
-    palmLatched = false;
-    activationMeter.style.setProperty('--activation', '0%');
-  }
+  const hold = updateControlHold(controlHold, controlSign, now);
+  activationMeter.style.setProperty('--activation', `${hold.progress * 100}%`);
+  if (hold.triggered === 'ok') setFuzzControlActive(!fuzzControlActive);
+  if (hold.triggered === 'palm') setMusicControlActive(!musicControlActive);
 
   if (musicControlActive && volumeDirection && !volumeGestureLatched) {
     volumeGestureLatched = true;
@@ -379,9 +414,10 @@ function updateGestureControl(results, transform, ratio) {
     volumeGestureLatched = false;
   }
 
-  if (musicControlActive && mediaAction && !mediaGestureLatched) {
+  if ((musicControlActive || fuzzControlActive) && mediaAction && !mediaGestureLatched) {
     mediaGestureLatched = true;
-    changeTrack(mediaAction);
+    if (fuzzControlActive) cycleFuzzMode(mediaAction === 'next' ? 1 : -1);
+    else changeTrack(mediaAction);
   } else if (!mediaAction) {
     mediaGestureLatched = false;
   }
@@ -390,7 +426,7 @@ function updateGestureControl(results, transform, ratio) {
     if (musicControlActive) gestureCursor.style.display = 'none';
     return;
   }
-  if (volumeDirection || mediaAction) {
+  if (volumeDirection || mediaAction || isOk) {
     gestureCursor.style.display = 'none';
     return;
   }
@@ -430,6 +466,18 @@ async function loadRecognizer() {
     });
     modelState.textContent = 'Hands ready';
     try {
+      faceDetector = await FaceDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        minDetectionConfidence: .5,
+      });
+    } catch (error) {
+      logError('Face detection could not load; using pose nose tracking', error);
+    }
+    try {
       poseRecognizer = await PoseLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
@@ -465,6 +513,8 @@ function stopCamera() {
   gestureState.textContent = confidenceState.textContent = cameraState.textContent = '—';
   fpsState.textContent = '0';
   latestPoseResults = undefined;
+  latestFaceResults = undefined;
+  Object.assign(controlHold, createControlHold());
   poseFrameCount = 0;
   flexEffects = [];
   previousHandPoints = [];
@@ -553,7 +603,7 @@ function drawResults(results, poseResults, now) {
   transform.y = (overlay.height - transform.height) / 2;
   let bestGesture;
 
-  updateAndDrawFuzzBalls(results, transform, ratio, now);
+  updateAndDrawFuzzBalls(results, poseResults, transform, ratio, now);
   updateGestureControl(results, transform, ratio);
   updateFlexDetection(poseResults, transform, ratio);
 
@@ -589,6 +639,10 @@ function drawResults(results, poseResults, now) {
     ? (bestGesture.categoryName === 'Open_Palm' ? 'OPEN HAND' : bestGesture.categoryName.replaceAll('_', ' '))
     : 'SEARCHING';
   confidenceState.textContent = bestGesture ? `${Math.round(bestGesture.score * 100)}%` : '—';
+  if (controlHold.kind && now - controlHold.lastSeen <= 250) {
+    gestureState.textContent = controlHold.kind === 'ok' ? 'OK SIGN' : 'OPEN HAND';
+    confidenceState.textContent = controlHold.latched ? 'ACCEPTED' : 'HOLD 1 SEC';
+  }
   drawFlexEffects(now, ratio);
 }
 
@@ -597,6 +651,7 @@ function detectFrame() {
   if (recognizer && video.readyState >= 2 && video.currentTime !== previousVideoTime) {
     previousVideoTime = video.currentTime;
     const now = performance.now();
+    if (faceDetector) latestFaceResults = faceDetector.detectForVideo(video, now);
     if (poseRecognizer && poseFrameCount++ % 2 === 0) {
       latestPoseResults = poseRecognizer.detectForVideo(video, now);
     }
@@ -612,6 +667,19 @@ function detectFrame() {
 }
 
 startButton.addEventListener('click', () => stream ? stopCamera() : startCamera());
+function cycleFuzzMode(direction = 1) {
+  fuzzMode = fuzzModes[(fuzzModes.indexOf(fuzzMode) + direction + fuzzModes.length) % fuzzModes.length];
+  fuzzModeButton.textContent = `Fuzzballs: ${fuzzMode}`;
+  fuzzState.textContent = fuzzMode.toUpperCase();
+  fuzzBalls.forEach(ball => {
+    ball.retreatUntil = 0;
+    if (fuzzMode === 'drift') {
+      ball.vx *= .15;
+      ball.vy *= .15;
+    }
+  });
+}
+fuzzModeButton.addEventListener('click', () => cycleFuzzMode());
 cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
 mirrorButton.addEventListener('click', () => {
   mirrored = !mirrored;
@@ -627,7 +695,7 @@ document.addEventListener('fullscreenchange', () => {
   $('#fullscreenButton').textContent = document.fullscreenElement ? 'Exit interface' : 'Enter interface';
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && musicControlActive) setMusicControlActive(false);
+  if (event.key === 'Escape') setFuzzControlActive(false);
 });
 window.addEventListener('beforeunload', stopCamera);
 

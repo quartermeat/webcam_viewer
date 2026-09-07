@@ -16,7 +16,8 @@
       <video id="video" autoplay playsinline muted></video>
       <canvas id="overlay" aria-hidden="true"></canvas>
       <div class="hud" aria-live="polite">
-        <div class="mode-panel"><span>MUSIC CONTROL</span><strong id="controlState">OBSERVE</strong><i id="activationMeter"></i></div>
+        <div class="mode-panel"><span>HAND CONTROL</span><strong id="controlState">OBSERVE</strong><i id="activationMeter"></i></div>
+        <div><span>FUZZBALLS</span><strong id="fuzzState">ATTACK NOSE</strong></div>
         <div><span>SYSTEM</span><strong id="modelState">Loading vision…</strong></div>
         <div><span>GESTURE</span><strong id="gestureState">—</strong></div>
         <div><span>CONFIDENCE</span><strong id="confidenceState">—</strong></div>
@@ -43,8 +44,9 @@
       </section>
       <aside class="input-legend" aria-label="Available controls">
         <span><kbd>PALM</kbd> MUSIC</span>
+        <span><kbd>OK</kbd> FUZZBALLS</span>
         <span><kbd>THUMB ↑↓</kbd> VOLUME</span>
-        <span><kbd>VICTORY</kbd> NEXT</span>
+        <span><kbd>PEACE</kbd> NEXT</span>
         <span><kbd>FIST</kbd> PREVIOUS</span>
         <span><kbd>PINCH</kbd> SELECT</span>
         <span><kbd>SCROLL LOCK</kbd> SPEAK</span>
@@ -63,6 +65,7 @@
       </label>
       <button id="startButton" class="primary">Initialize interface</button>
       <button id="mirrorButton" aria-pressed="true">Mirror: on</button>
+      <button id="fuzzModeButton" title="Cycle fuzzball behavior">Fuzzballs: attack nose</button>
       <button id="fullscreenButton">Enter interface</button>
     </section>
 
