@@ -61,6 +61,30 @@ flowchart TD
 
 The bridge probe has a 300 ms request timeout and checks HTTP status only, not server identity. The window starts at 1440 × 900 before maximizing. Renderer settings enable context isolation and sandboxing and disable Node integration. The permission callback permits media requests from the local interface URL and denies other requested permission types.
 
+## Phone camera prototype
+
+```mermaid
+sequenceDiagram
+    participant Phone as phone.html
+    participant Bridge as Go bridge
+    participant Viewer as Electron viewer
+    participant Canvas as compositor canvas
+    Phone->>Bridge: POST camera SDP offer
+    Viewer->>Bridge: Poll camera offer
+    Viewer->>Bridge: POST camera SDP answer
+    Phone->>Bridge: Poll camera answer
+    Phone-->>Viewer: Direct LAN WebRTC camera track
+    Phone->>Bridge: POST preview SDP offer
+    Viewer->>Bridge: Poll preview offer
+    Viewer->>Bridge: POST preview SDP answer
+    Phone->>Bridge: Poll preview answer
+    Canvas-->>Phone: Direct LAN WebRTC composited video track
+```
+
+`phone.html` is a browser prototype rather than a native Android app. It captures video only, creates a direct peer connection with an empty ICE-server list, and waits for complete ICE gathering before exchanging SDP through the bridge. The viewer's **Video source** selector chooses Local webcam or Phone camera. In Phone camera mode, the renderer accepts the phone track into the same video/inference loop; a second peer connection sends a 15 FPS stream from the hidden compositor canvas back to the phone's Processed preview element. Both signaling directions are held in process memory and support one active phone session; a new offer replaces the previous one.
+
+The bridge remains bound to `127.0.0.1:8090` by default. Set `WEBCAM_VIEWER_BIND=0.0.0.0` (or an explicit LAN address and port) when starting the server so a phone can reach it. This exposes the static project server to the LAN and has no authentication or HTTPS. WebRTC candidates are host candidates only, so this prototype is intended for the same local network and does not handle NAT traversal. Reloading or stopping the viewer closes both phone peer connections. The phone page currently shows its local camera until the returned processed track arrives; it does not publish to a streaming service.
+
 Closing all windows quits Electron. Before quitting, Electron kills the bridge it spawned; a reused bridge remains independent. Reloading resets renderer state and turns the camera off until initialized again. Starting or changing a camera first stops the previous stream and clears tracking/control state.
 
 `npm run serve` builds and runs just the Go server for a regular browser. Browser rendering does not provide the same desktop transparency as the Electron window.

@@ -5,8 +5,11 @@ const $ = selector => document.querySelector(selector);
 const video = $('#video');
 const stage = $('#stage');
 const overlay = $('#overlay');
+const composite = $('#composite');
+const compositeCtx = composite.getContext('2d');
 const ctx = overlay.getContext('2d');
 const cameraSelect = $('#cameraSelect');
+const sourceSelect = $('#sourceSelect');
 const startButton = $('#startButton');
 const mirrorButton = $('#mirrorButton');
 const emptyState = $('#emptyState');
@@ -40,6 +43,10 @@ const connections = [
 ];
 
 let stream;
+let phonePeer;
+let phoneOfferSeen = '';
+let previewPeer;
+let previewOfferSeen = '';
 let recognizer;
 let poseRecognizer;
 let faceDetector;
@@ -503,6 +510,12 @@ async function loadRecognizer() {
 function stopCamera() {
   cancelAnimationFrame(animationId);
   stream?.getTracks().forEach(track => track.stop());
+  phonePeer?.close();
+  phonePeer = undefined;
+  phoneOfferSeen = '';
+  previewPeer?.close();
+  previewPeer = undefined;
+  previewOfferSeen = '';
   stream = undefined;
   video.srcObject = null;
   ctx.clearRect(0, 0, overlay.width, overlay.height);
@@ -562,6 +575,64 @@ async function startCamera(deviceId = cameraSelect.value) {
       ? 'Camera permission was denied'
       : 'Could not start the camera', error);
   }
+}
+
+const waitIceGathering = peer => peer.iceGatheringState === 'complete' ? Promise.resolve() : new Promise(resolve => {
+  peer.addEventListener('icegatheringstatechange', () => peer.iceGatheringState === 'complete' && resolve(), { once: true });
+});
+
+async function startPhoneCamera() {
+  stopCamera();
+  stream = new MediaStream();
+  video.srcObject = stream;
+  phonePeer = new RTCPeerConnection({ iceServers: [] });
+  phonePeer.ontrack = event => {
+    event.streams[0]?.getTracks().forEach(track => stream.addTrack(track));
+    video.play().catch(() => {});
+    cameraState.textContent = 'PHONE';
+    status.textContent = 'Phone camera online';
+    status.classList.add('live');
+    emptyState.classList.add('hidden');
+  };
+  status.textContent = 'Waiting for phone camera';
+  status.classList.add('live');
+  startButton.textContent = 'Suspend interface';
+  const pollOffer = async () => {
+    if (!phonePeer) return;
+    try {
+      const response = await fetch(`/api/phone/offer?t=${Date.now()}`, { cache: 'no-store' });
+      const payload = await response.json();
+      if (payload.sdp && payload.sdp !== phoneOfferSeen) {
+        phoneOfferSeen = payload.sdp;
+        await phonePeer.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
+        const answer = await phonePeer.createAnswer();
+        await phonePeer.setLocalDescription(answer);
+        await waitIceGathering(phonePeer);
+        await fetch('/api/phone/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sdp: phonePeer.localDescription.sdp }) });
+      }
+      await pollPreviewOffer();
+    } catch (error) {
+      logError('Phone signaling failed', error);
+    }
+    window.setTimeout(pollOffer, 700);
+  };
+  pollOffer();
+}
+
+async function pollPreviewOffer() {
+  if (!phonePeer || !composite.captureStream) return;
+  const payload = await (await fetch(`/api/phone/preview-offer?t=${Date.now()}`, { cache: 'no-store' })).json();
+  if (!payload.sdp || payload.sdp === previewOfferSeen) return;
+  previewOfferSeen = payload.sdp;
+  previewPeer?.close();
+  previewPeer = new RTCPeerConnection({ iceServers: [] });
+  const previewStream = composite.captureStream(15);
+  previewPeer.addTrack(previewStream.getVideoTracks()[0], previewStream);
+  await previewPeer.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
+  const answer = await previewPeer.createAnswer();
+  await previewPeer.setLocalDescription(answer);
+  await waitIceGathering(previewPeer);
+  await fetch('/api/phone/preview-answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sdp: previewPeer.localDescription.sdp }) });
 }
 
 function displayPoint(landmark, transform) {
@@ -644,6 +715,14 @@ function drawResults(results, poseResults, now) {
     confidenceState.textContent = controlHold.latched ? 'ACCEPTED' : 'HOLD 1 SEC';
   }
   drawFlexEffects(now, ratio);
+  if (composite.width !== overlay.width) composite.width = overlay.width;
+  if (composite.height !== overlay.height) composite.height = overlay.height;
+  compositeCtx.clearRect(0, 0, composite.width, composite.height);
+  compositeCtx.save();
+  if (mirrored) { compositeCtx.translate(composite.width, 0); compositeCtx.scale(-1, 1); }
+  compositeCtx.drawImage(video, transform.x, transform.y, transform.width, transform.height);
+  compositeCtx.restore();
+  compositeCtx.drawImage(overlay, 0, 0);
 }
 
 function detectFrame() {
@@ -666,7 +745,11 @@ function detectFrame() {
   animationId = requestAnimationFrame(detectFrame);
 }
 
-startButton.addEventListener('click', () => stream ? stopCamera() : startCamera());
+startButton.addEventListener('click', () => stream ? stopCamera() : sourceSelect.value === 'phone' ? startPhoneCamera() : startCamera());
+sourceSelect.addEventListener('change', () => {
+  cameraSelect.disabled = sourceSelect.value === 'phone';
+  if (stream) sourceSelect.value === 'phone' ? startPhoneCamera() : startCamera();
+});
 function cycleFuzzMode(direction = 1) {
   fuzzMode = fuzzModes[(fuzzModes.indexOf(fuzzMode) + direction + fuzzModes.length) % fuzzModes.length];
   fuzzModeButton.textContent = `Fuzzballs: ${fuzzMode}`;

@@ -15,6 +15,7 @@
     <section id="stage" class="stage">
       <video id="video" autoplay playsinline muted></video>
       <canvas id="overlay" aria-hidden="true"></canvas>
+      <canvas id="composite" aria-hidden="true" hidden></canvas>
       <div class="hud" aria-live="polite">
         <div class="mode-panel"><span>HAND CONTROL</span><strong id="controlState">OBSERVE</strong><i id="activationMeter"></i></div>
         <div><span>FUZZBALLS</span><strong id="fuzzState">ATTACK NOSE</strong></div>
@@ -59,6 +60,13 @@
     </section>
 
     <section class="controls" aria-label="Interface controls">
+      <label>
+        <span>Video source</span>
+        <select id="sourceSelect" aria-label="Video source">
+          <option value="local">Local webcam</option>
+          <option value="phone">Phone camera</option>
+        </select>
+      </label>
       <label>
         <span>Camera</span>
         <select id="cameraSelect" aria-label="Camera"></select>

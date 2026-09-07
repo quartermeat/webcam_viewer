@@ -11,7 +11,7 @@ cd /home/quartermeat/work/webcam_viewer
 npm start
 ```
 
-The Electron desktop overlay builds and starts the local Go control bridge, then opens a transparent window. Allow camera access when prompted. For browser-only development, run `npm run serve` and open <http://127.0.0.1:8090/>; browser windows do not expose the desktop through transparent page backgrounds.
+The Electron desktop overlay builds and starts the local Go control bridge, then opens a transparent window. Allow camera access when prompted. For browser-only development, run `npm run serve` and open <http://127.0.0.1:8090/>; browser windows do not expose the desktop through transparent page backgrounds. For the phone camera prototype, run `WEBCAM_VIEWER_BIND=0.0.0.0 npm run serve`, then open `http://<workstation-LAN-IP>:8090/phone.html` on the phone. The phone and workstation must be on the same LAN. The phone page sends camera video to the Linux viewer over direct LAN WebRTC and receives a compositor preview back; the Electron viewer still has a Local webcam source fallback.
 
 The first load downloads Google's gesture- and pose-recognition models. Hold an open palm toward the camera to display the green recognition box and HUD confidence score. Bend either arm into a bicep flex to emit a holographic energy burst from the tracked upper arm; relax the arm before flexing again.
 

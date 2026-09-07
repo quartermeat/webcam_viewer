@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,6 +18,78 @@ const (
 
 var volumeSteps = map[string]string{"up": "5%+", "down": "5%-"}
 var mediaActions = map[string]string{"next": "next", "previous": "previous"}
+
+type phoneSignal struct {
+	sync.RWMutex
+	offer, answer               string
+	previewOffer, previewAnswer string
+}
+
+func signalHandler(response http.ResponseWriter, request *http.Request, preview bool) {
+	isAnswer := strings.HasSuffix(request.URL.Path, "answer")
+	get := func() string {
+		phone.RLock()
+		defer phone.RUnlock()
+		if preview {
+			return phone.previewOffer
+		}
+		return phone.offer
+	}
+	set := func(value string) {
+		phone.Lock()
+		defer phone.Unlock()
+		if preview {
+			phone.previewOffer, phone.previewAnswer = value, ""
+		} else {
+			phone.offer, phone.answer = value, ""
+		}
+	}
+	getAnswer := func() string {
+		phone.RLock()
+		defer phone.RUnlock()
+		if preview {
+			return phone.previewAnswer
+		}
+		return phone.answer
+	}
+	setAnswer := func(value string) {
+		phone.Lock()
+		defer phone.Unlock()
+		if preview {
+			phone.previewAnswer = value
+		} else {
+			phone.answer = value
+		}
+	}
+	if request.Method == http.MethodGet {
+		value := get()
+		if isAnswer {
+			value = getAnswer()
+		}
+		writeJSON(response, http.StatusOK, map[string]string{"sdp": value})
+		return
+	}
+	if request.Method != http.MethodPost || !strings.HasPrefix(request.Header.Get("Content-Type"), "application/json") {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "JSON POST required"})
+		return
+	}
+	var payload struct {
+		SDP string `json:"sdp"`
+	}
+	request.Body = http.MaxBytesReader(response, request.Body, 2<<20)
+	if json.NewDecoder(request.Body).Decode(&payload) != nil || payload.SDP == "" {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "SDP required"})
+		return
+	}
+	if isAnswer {
+		setAnswer(payload.SDP)
+	} else {
+		set(payload.SDP)
+	}
+	writeJSON(response, http.StatusAccepted, map[string]bool{"ok": true})
+}
+
+var phone phoneSignal
 
 type commandRequest struct {
 	Direction string `json:"direction"`
@@ -88,12 +162,28 @@ func mediaHandler(response http.ResponseWriter, request *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"action": payload.Action})
 }
 
+func phoneOfferHandler(response http.ResponseWriter, request *http.Request) {
+	signalHandler(response, request, false)
+}
+
+func phoneAnswerHandler(response http.ResponseWriter, request *http.Request) {
+	signalHandler(response, request, false)
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/volume", volumeHandler)
 	mux.HandleFunc("/api/media", mediaHandler)
+	mux.HandleFunc("/api/phone/offer", phoneOfferHandler)
+	mux.HandleFunc("/api/phone/answer", phoneAnswerHandler)
+	mux.HandleFunc("/api/phone/preview-offer", func(w http.ResponseWriter, r *http.Request) { signalHandler(w, r, true) })
+	mux.HandleFunc("/api/phone/preview-answer", func(w http.ResponseWriter, r *http.Request) { signalHandler(w, r, true) })
 	mux.Handle("/", http.FileServer(http.Dir(".")))
-	server := &http.Server{Addr: address, Handler: mux, ReadHeaderTimeout: 2 * time.Second}
-	log.Printf("Serving Human Interface on %s", origin+"/")
+	bindAddress := os.Getenv("WEBCAM_VIEWER_BIND")
+	if bindAddress == "" {
+		bindAddress = address
+	}
+	server := &http.Server{Addr: bindAddress, Handler: mux, ReadHeaderTimeout: 2 * time.Second}
+	log.Printf("Serving Human Interface on http://%s/", bindAddress)
 	log.Fatal(server.ListenAndServe())
 }

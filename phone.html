@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Human Interface camera</title>
+<style>
+  html,body { margin:0; width:100%; height:100%; background:#020708; color:#9fffdc; font:16px system-ui; }
+  main { display:grid; place-items:center; gap:1rem; min-height:100%; padding:1rem; box-sizing:border-box; }
+  video { width:min(100%, 720px); max-height:78vh; object-fit:contain; background:#000; border:1px solid #287d68; border-radius:12px; }
+  button { border:1px solid #48cba6; border-radius:8px; background:#12352e; color:#d8fff1; padding:.8rem 1rem; font:inherit; }
+  #state { opacity:.8; }
+</style>
+<main>
+  <h1>Human Interface camera</h1>
+  <video id="preview" autoplay playsinline muted></video>
+  <video id="processed" autoplay playsinline muted hidden></video>
+  <button id="start">Connect camera</button>
+  <div id="state">Waiting for Linux viewer…</div>
+</main>
+<script type="module">
+const preview = document.querySelector('#preview');
+const button = document.querySelector('#start');
+const state = document.querySelector('#state');
+let camera, peer, previewPeer, answerSeen = '', previewAnswerSeen = '';
+const waitIce = pc => pc.iceGatheringState === 'complete' ? Promise.resolve() : new Promise(resolve => {
+  pc.addEventListener('icegatheringstatechange', () => pc.iceGatheringState === 'complete' && resolve(), { once:true });
+});
+async function connect() {
+  button.disabled = true;
+  state.textContent = 'Requesting camera…';
+  camera = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:30} }, audio:false });
+  preview.srcObject = camera;
+  peer = new RTCPeerConnection({ iceServers:[] });
+  camera.getTracks().forEach(track => peer.addTrack(track, camera));
+  const offer = await peer.createOffer();
+  await peer.setLocalDescription(offer);
+  await waitIce(peer);
+  await fetch('/api/phone/offer', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sdp:peer.localDescription.sdp}) });
+  state.textContent = 'Camera connected; waiting for viewer answer…';
+  const poll = async () => {
+    if (!peer) return;
+    const response = await fetch('/api/phone/answer?t='+Date.now(), {cache:'no-store'});
+    const payload = await response.json();
+    if (payload.sdp && payload.sdp !== answerSeen) {
+      answerSeen = payload.sdp;
+      await peer.setRemoteDescription({type:'answer', sdp:payload.sdp});
+  state.textContent = 'Sending camera to Linux';
+      connectPreview();
+      return;
+    }
+    setTimeout(poll, 700);
+  };
+  poll();
+}
+async function connectPreview() {
+  previewPeer = new RTCPeerConnection({ iceServers:[] });
+  previewPeer.ontrack = event => { const output = document.querySelector('#processed'); output.hidden = false; output.srcObject = event.streams[0]; state.textContent = 'Processed preview connected'; };
+  const offer = await previewPeer.createOffer({ offerToReceiveVideo:true });
+  await previewPeer.setLocalDescription(offer); await waitIce(previewPeer);
+  await fetch('/api/phone/preview-offer', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sdp:previewPeer.localDescription.sdp}) });
+  const poll = async () => {
+    if (!previewPeer) return;
+    const payload = await (await fetch('/api/phone/preview-answer?t='+Date.now(), {cache:'no-store'})).json();
+    if (payload.sdp && payload.sdp !== previewAnswerSeen) { previewAnswerSeen=payload.sdp; await previewPeer.setRemoteDescription({type:'answer',sdp:payload.sdp}); return; }
+    setTimeout(poll,700);
+  };
+  poll();
+}
+button.addEventListener('click', () => connect().catch(error => { button.disabled=false; state.textContent='Camera error: '+error.message; }));
+</script>
