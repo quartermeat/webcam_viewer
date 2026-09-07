@@ -58,7 +58,12 @@ async function connect() {
 }
 async function connectPreview() {
   previewPeer = new RTCPeerConnection({ iceServers:[] });
-  previewPeer.ontrack = event => { const output = document.querySelector('#processed'); output.hidden = false; preview.hidden = true; output.srcObject = event.streams[0]; output.play().catch(() => {}); state.textContent = 'Processed preview connected'; };
+  previewPeer.ontrack = event => {
+    const output = document.querySelector('#processed');
+    const stream = event.streams[0] || new MediaStream([event.track]);
+    output.hidden = false; preview.hidden = true; output.srcObject = stream;
+    output.play().catch(() => {}); state.textContent = 'Processed preview connected';
+  };
   previewPeer.addTransceiver('video', { direction:'recvonly' });
   const offer = await previewPeer.createOffer();
   await previewPeer.setLocalDescription(offer); await waitIce(previewPeer);

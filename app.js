@@ -601,7 +601,8 @@ async function startPhoneCamera() {
   video.srcObject = stream;
   phonePeer = new RTCPeerConnection({ iceServers: [] });
   phonePeer.ontrack = event => {
-    event.streams[0]?.getTracks().forEach(track => stream.addTrack(track));
+    const tracks = event.streams[0]?.getTracks() || (event.track ? [event.track] : []);
+    tracks.forEach(track => { if (!stream.getTracks().includes(track)) stream.addTrack(track); });
     video.play().catch(() => {});
     cameraState.textContent = 'PHONE';
     status.textContent = 'Phone camera online';
