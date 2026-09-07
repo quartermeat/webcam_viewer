@@ -15,6 +15,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.View;
 
 public final class MainActivity extends Activity {
     private static final String DEFAULT_URL = "https://192.168.1.13:8443/phone.html";
@@ -24,6 +25,9 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.CAMERA}, 10);
         webView = new WebView(this);
@@ -32,7 +36,10 @@ public final class MainActivity extends Activity {
         webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
         webView.getSettings().setDomStorageEnabled(true);
         webView.setWebViewClient(new WebViewClient() {
-            @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) { handler.proceed(); }
+            @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                // The workstation uses a self-signed LAN certificate during development.
+                if (BuildConfig.DEBUG) handler.proceed(); else handler.cancel();
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { view.loadUrl(request.getUrl().toString()); return true; }
         });
         webView.setWebChromeClient(new WebChromeClient() {
