@@ -599,6 +599,8 @@ async function startPhoneCamera() {
     status.textContent = 'Phone camera online';
     status.classList.add('live');
     emptyState.classList.add('hidden');
+    lastInferenceAt = 0;
+    detectFrame();
   };
   status.textContent = 'Waiting for phone camera';
   status.classList.add('live');
