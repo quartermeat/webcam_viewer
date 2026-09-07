@@ -61,6 +61,7 @@ let previousHandPoints = [];
 let mirrored = true;
 let animationId;
 let previousVideoTime = -1;
+let lastInferenceAt = 0;
 let frameCount = 0;
 let fpsWindowStart = performance.now();
 let musicControlActive = false;
@@ -531,6 +532,8 @@ function stopCamera() {
   poseFrameCount = 0;
   flexEffects = [];
   previousHandPoints = [];
+  previousVideoTime = -1;
+  lastInferenceAt = 0;
   flexLatched.left = flexLatched.right = false;
   setMusicControlActive(false);
 }
@@ -568,6 +571,7 @@ async function startCamera(deviceId = cameraSelect.value) {
     status.classList.add('live');
     emptyState.classList.add('hidden');
     previousVideoTime = -1;
+    lastInferenceAt = 0;
     detectFrame();
   } catch (error) {
     stopCamera();
@@ -729,9 +733,13 @@ function drawResults(results, poseResults, now) {
 
 function detectFrame() {
   if (!stream) return;
-  if (recognizer && video.readyState >= 2 && video.currentTime !== previousVideoTime) {
+  const now = performance.now();
+  // Remote WebRTC tracks can keep currentTime unchanged even while new frames
+  // arrive. Use a wall-clock gate so local and phone sources share the same
+  // inference loop.
+  if (recognizer && video.readyState >= 2 && now - lastInferenceAt >= 33) {
+    lastInferenceAt = now;
     previousVideoTime = video.currentTime;
-    const now = performance.now();
     if (faceDetector) latestFaceResults = faceDetector.detectForVideo(video, now);
     if (poseRecognizer && poseFrameCount++ % 2 === 0) {
       latestPoseResults = poseRecognizer.detectForVideo(video, now);
