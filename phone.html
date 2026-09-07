@@ -29,10 +29,11 @@ const waitIce = pc => pc.iceGatheringState === 'complete' ? Promise.resolve() : 
 async function connect() {
   button.disabled = true;
   state.textContent = 'Requesting camera…';
-  camera = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:30} }, audio:false });
+  // 720p keeps the uplink and Linux-side vision pipeline responsive on LAN.
+  camera = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} }, audio:false });
   preview.srcObject = camera;
   peer = new RTCPeerConnection({ iceServers:[] });
-  camera.getTracks().forEach(track => peer.addTrack(track, camera));
+  camera.getTracks().forEach(track => { track.contentHint = 'motion'; peer.addTrack(track, camera); });
   const offer = await peer.createOffer();
   await peer.setLocalDescription(offer);
   state.textContent = 'Gathering local connection…';
@@ -57,7 +58,7 @@ async function connect() {
 }
 async function connectPreview() {
   previewPeer = new RTCPeerConnection({ iceServers:[] });
-  previewPeer.ontrack = event => { const output = document.querySelector('#processed'); output.hidden = false; preview.hidden = true; output.srcObject = event.streams[0]; state.textContent = 'Processed preview connected'; };
+  previewPeer.ontrack = event => { const output = document.querySelector('#processed'); output.hidden = false; preview.hidden = true; output.srcObject = event.streams[0]; output.play().catch(() => {}); state.textContent = 'Processed preview connected'; };
   previewPeer.addTransceiver('video', { direction:'recvonly' });
   const offer = await previewPeer.createOffer();
   await previewPeer.setLocalDescription(offer); await waitIce(previewPeer);

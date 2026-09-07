@@ -634,8 +634,10 @@ async function pollPreviewOffer() {
   previewOfferSeen = payload.sdp;
   previewPeer?.close();
   previewPeer = new RTCPeerConnection({ iceServers: [] });
-  const previewStream = composite.captureStream(15);
-  previewPeer.addTrack(previewStream.getVideoTracks()[0], previewStream);
+  const previewStream = composite.captureStream(30);
+  const previewTrack = previewStream.getVideoTracks()[0];
+  previewTrack.contentHint = 'motion';
+  previewPeer.addTrack(previewTrack, previewStream);
   await previewPeer.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
   const answer = await previewPeer.createAnswer();
   await previewPeer.setLocalDescription(answer);
