@@ -23,8 +23,13 @@ const app = $('.app');
 const controlState = $('#controlState');
 const fuzzState = $('#fuzzState');
 const fuzzModeButton = $('#fuzzModeButton');
+const poolButton = $('#poolButton');
+const poolCalibrateButton = $('#poolCalibrateButton');
 const fuzzModes = ['attack nose', 'drift', 'freeze'];
 let fuzzMode = 'attack nose';
+let poolMode = false;
+let poolCalibrationArmed = false;
+let poolCorners = [];
 const activationMeter = $('#activationMeter');
 const gestureCursor = $('#gestureCursor');
 const transcriptPanel = $('.transcript-panel');
@@ -734,6 +739,7 @@ function drawResults(results, poseResults, now) {
     confidenceState.textContent = controlHold.latched ? 'ACCEPTED' : 'HOLD 1 SEC';
   }
   drawFlexEffects(now, ratio);
+  drawPoolOverlay(now, ratio);
   if (composite.width !== overlay.width) composite.width = overlay.width;
   if (composite.height !== overlay.height) composite.height = overlay.height;
   compositeCtx.clearRect(0, 0, composite.width, composite.height);
@@ -743,6 +749,67 @@ function drawResults(results, poseResults, now) {
   compositeCtx.restore();
   compositeCtx.drawImage(overlay, 0, 0);
 }
+
+function drawPoolOverlay(now, ratio) {
+  if (!poolMode || poolCorners.length === 0) return;
+  const points = poolCorners.map(point => ({ x: point.x * ratio, y: point.y * ratio }));
+  ctx.save();
+  ctx.lineWidth = 2 * ratio;
+  ctx.strokeStyle = '#53ffc2cc';
+  ctx.fillStyle = '#53ffc214';
+  ctx.beginPath();
+  points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+  if (points.length === 4) ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  points.forEach((point, index) => {
+    ctx.fillStyle = '#020708'; ctx.beginPath(); ctx.arc(point.x, point.y, 11 * ratio, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#53ffc2'; ctx.stroke();
+    ctx.fillStyle = '#b8ffe7'; ctx.font = `${Math.round(12 * ratio)}px ui-monospace, monospace`;
+    ctx.fillText(String(index + 1), point.x - 4 * ratio, point.y + 4 * ratio);
+  });
+  if (points.length === 4) {
+    const left = { x: (points[0].x + points[3].x) / 2, y: (points[0].y + points[3].y) / 2 };
+    const right = { x: (points[1].x + points[2].x) / 2, y: (points[1].y + points[2].y) / 2 };
+    const pulse = .5 + .5 * Math.sin(now * .004);
+    ctx.setLineDash([16 * ratio, 12 * ratio]);
+    ctx.lineWidth = (2 + pulse) * ratio;
+    ctx.strokeStyle = `rgba(255, 218, 105, ${.65 + pulse * .25})`;
+    ctx.beginPath(); ctx.moveTo(left.x, left.y); ctx.lineTo(right.x, right.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffe18a'; ctx.font = `${Math.round(13 * ratio)}px ui-monospace, monospace`;
+    ctx.fillText('AIM LINE · CALIBRATED TABLE', left.x + 12 * ratio, left.y - 10 * ratio);
+  }
+  if (poolCalibrationArmed) {
+    ctx.fillStyle = '#b8ffe7'; ctx.font = `${Math.round(14 * ratio)}px ui-monospace, monospace`;
+    ctx.fillText(`TAP CORNER ${Math.min(poolCorners.length + 1, 4)} OF 4`, 18 * ratio, overlay.height - 22 * ratio);
+  }
+  ctx.restore();
+}
+
+function setPoolMode(enabled) {
+  poolMode = enabled;
+  poolCalibrationArmed = false;
+  poolButton.setAttribute('aria-pressed', String(enabled));
+  poolButton.textContent = `Pool mode: ${enabled ? 'on' : 'off'}`;
+  poolCalibrateButton.disabled = !enabled;
+  if (!enabled) poolCorners = [];
+}
+
+poolButton.addEventListener('click', () => setPoolMode(!poolMode));
+poolCalibrateButton.addEventListener('click', () => {
+  poolCalibrationArmed = true;
+  poolCorners = [];
+  poolCalibrateButton.textContent = 'Tap table corners…';
+});
+stage.addEventListener('click', event => {
+  if (!poolMode || !poolCalibrationArmed || poolCorners.length >= 4) return;
+  const rect = stage.getBoundingClientRect();
+  poolCorners.push({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+  if (poolCorners.length === 4) {
+    poolCalibrationArmed = false;
+    poolCalibrateButton.textContent = 'Recalibrate table';
+  }
+});
 
 function detectFrame() {
   if (!stream) return;
