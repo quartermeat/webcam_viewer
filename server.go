@@ -188,5 +188,20 @@ func main() {
 	}
 	server := &http.Server{Addr: bindAddress, Handler: mux, ReadHeaderTimeout: 2 * time.Second}
 	log.Printf("Serving Human Interface on http://%s/", bindAddress)
+	if certFile, keyFile := os.Getenv("WEBCAM_VIEWER_TLS_CERT"), os.Getenv("WEBCAM_VIEWER_TLS_KEY"); certFile != "" && keyFile != "" {
+		tlsBind := os.Getenv("WEBCAM_VIEWER_TLS_BIND")
+		if tlsBind == "" {
+			tlsBind = ":8443"
+		} else if _, _, err := net.SplitHostPort(tlsBind); err != nil {
+			tlsBind = net.JoinHostPort(tlsBind, "8443")
+		}
+		tlsServer := &http.Server{Addr: tlsBind, Handler: mux, ReadHeaderTimeout: 2 * time.Second}
+		go func() {
+			log.Printf("Serving secure phone interface on https://%s/", tlsBind)
+			if err := tlsServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+				log.Fatal(err)
+			}
+		}()
+	}
 	log.Fatal(server.ListenAndServe())
 }

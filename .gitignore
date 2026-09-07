@@ -2,4 +2,5 @@ node_modules/
 latest-transcript.txt
 now-playing.json
 *.log
+certs/
 bin/

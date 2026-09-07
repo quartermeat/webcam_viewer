@@ -10,6 +10,7 @@
     "obs:setup": "./scripts/setup-obs.sh",
     "stream": "./scripts/launch-streaming.sh",
     "serve": "npm run build:bridge && ./bin/webcam-viewer-server",
+    "phone:start": "./scripts/phone-start.sh",
     "test": "node --test gesture-controls.test.mjs"
   },
   "keywords": [],
