@@ -21,11 +21,16 @@
 </main>
 <script type="module">
 const preview = document.querySelector('#preview');
+const processed = document.querySelector('#processed');
 const button = document.querySelector('#start');
 const switchButton = document.querySelector('#switch');
 const state = document.querySelector('#state');
+const poolButton = document.createElement('button');
+poolButton.textContent = 'Calibrate table on phone'; poolButton.disabled = true;
+document.querySelector('main > div').append(poolButton);
 let camera, peer, previewPeer, answerSeen = '', previewAnswerSeen = '';
 let facingMode = 'user';
+let calibrationArmed = false, calibrationPoints = [];
 const waitIce = pc => pc.iceGatheringState === 'complete' ? Promise.resolve() : new Promise(resolve => {
   const finish = () => { clearTimeout(timeout); resolve(); };
   const timeout = setTimeout(finish, 2500);
@@ -87,10 +92,10 @@ async function switchCamera() {
 async function connectPreview() {
   previewPeer = new RTCPeerConnection({ iceServers:[] });
   previewPeer.ontrack = event => {
-    const output = document.querySelector('#processed');
+    const output = processed;
     const stream = event.streams[0] || new MediaStream([event.track]);
     output.hidden = false; preview.hidden = true; output.srcObject = stream;
-    output.play().catch(() => {}); state.textContent = 'Processed preview connected';
+    output.play().catch(() => {}); poolButton.disabled = false; state.textContent = 'Processed preview connected';
   };
   previewPeer.addTransceiver('video', { direction:'recvonly' });
   const offer = await previewPeer.createOffer();
@@ -106,4 +111,26 @@ async function connectPreview() {
 }
 button.addEventListener('click', () => connect().catch(error => { button.disabled=false; state.textContent='Camera error: '+error.message; }));
 switchButton.addEventListener('click', () => switchCamera());
+poolButton.addEventListener('click', () => {
+  calibrationArmed = true; calibrationPoints = [];
+  poolButton.textContent = 'Tap 4 corners on table…';
+  state.textContent = 'Tap table corners clockwise, starting top-left';
+});
+processed.addEventListener('click', async event => {
+  if (!calibrationArmed || calibrationPoints.length >= 4 || !processed.videoWidth) return;
+  const rect = processed.getBoundingClientRect();
+  const scale = Math.min(rect.width / processed.videoWidth, rect.height / processed.videoHeight);
+  const left = rect.left + (rect.width - processed.videoWidth * scale) / 2;
+  const top = rect.top + (rect.height - processed.videoHeight * scale) / 2;
+  calibrationPoints.push({
+    x: Math.max(0, Math.min(1, (event.clientX - left) / (processed.videoWidth * scale))),
+    y: Math.max(0, Math.min(1, (event.clientY - top) / (processed.videoHeight * scale))),
+  });
+  state.textContent = `Table corner ${calibrationPoints.length} of 4`;
+  if (calibrationPoints.length === 4) {
+    calibrationArmed = false; poolButton.textContent = 'Recalibrate table';
+    await fetch('/api/pool/calibration', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ points:calibrationPoints }) });
+    state.textContent = 'Table calibrated on Linux viewer';
+  }
+});
 </script>

@@ -38,10 +38,11 @@ Camera access works on `localhost`/`127.0.0.1` because browsers treat them as a 
 ## Pool table overlay (first milestone)
 
 Select **Pool mode: on**, point the phone's back camera at the complete table,
-then choose **Calibrate table (4 corners)** and tap the corners clockwise
-starting at the top-left. The overlay draws the calibrated table boundary and a
-live aim-line guide. This manual calibration is the foundation for automatic
-ball detection and shot recommendations; ball recognition is not enabled yet.
+then choose **Calibrate table on phone** and tap the corners clockwise starting
+at the top-left. Calibration is sent to the Linux viewer, so the table boundary
+and live aim-line guide are visible on both outputs. This manual calibration is
+the foundation for automatic ball detection and shot recommendations; ball
+recognition is not enabled yet.
 
 ## Streaming with OBS
 

@@ -25,11 +25,12 @@ const fuzzState = $('#fuzzState');
 const fuzzModeButton = $('#fuzzModeButton');
 const poolButton = $('#poolButton');
 const poolCalibrateButton = $('#poolCalibrateButton');
-const fuzzModes = ['attack nose', 'drift', 'freeze'];
-let fuzzMode = 'attack nose';
+const fuzzModes = ['off', 'attack nose', 'drift', 'freeze'];
+let fuzzMode = 'off';
 let poolMode = false;
 let poolCalibrationArmed = false;
 let poolCorners = [];
+let poolCalibrationSeen = '';
 const activationMeter = $('#activationMeter');
 const gestureCursor = $('#gestureCursor');
 const transcriptPanel = $('.transcript-panel');
@@ -294,6 +295,10 @@ function ensureFuzzBalls(width, height, ratio) {
 }
 
 function updateAndDrawFuzzBalls(results, poseResults, transform, ratio, now) {
+  if (fuzzMode === 'off') {
+    fuzzState.textContent = 'OFF';
+    return;
+  }
   ensureFuzzBalls(overlay.width, overlay.height, ratio);
   const hands = (results.landmarks || []).map(landmarks => landmarks.map(point => displayPoint(point, transform)));
   // Face keypoint two and pose landmark zero are the nose; keep the target invisible.
@@ -752,7 +757,14 @@ function drawResults(results, poseResults, now) {
 
 function drawPoolOverlay(now, ratio) {
   if (!poolMode || poolCorners.length === 0) return;
-  const points = poolCorners.map(point => ({ x: point.x * ratio, y: point.y * ratio }));
+  if (!video.videoWidth || !video.videoHeight) return;
+  const scale = Math.max(overlay.width / video.videoWidth, overlay.height / video.videoHeight);
+  const offsetX = (overlay.width - video.videoWidth * scale) / 2;
+  const offsetY = (overlay.height - video.videoHeight * scale) / 2;
+  const points = poolCorners.map(point => ({
+    x: offsetX + point.x * video.videoWidth * scale,
+    y: offsetY + point.y * video.videoHeight * scale,
+  }));
   ctx.save();
   ctx.lineWidth = 2 * ratio;
   ctx.strokeStyle = '#53ffc2cc';
@@ -801,10 +813,36 @@ poolCalibrateButton.addEventListener('click', () => {
   poolCorners = [];
   poolCalibrateButton.textContent = 'Tap table corners…';
 });
+async function pollPoolCalibration() {
+  try {
+    const response = await fetch(`/api/pool/calibration?t=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (!payload.points || payload.points === poolCalibrationSeen) return;
+    const points = JSON.parse(payload.points);
+    if (!Array.isArray(points) || points.length !== 4) return;
+    const normalized = points.map(point => ({ x: Number(point.x), y: Number(point.y) }));
+    if (normalized.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y))) return;
+    poolCalibrationSeen = payload.points;
+    poolCorners = normalized;
+    setPoolMode(true);
+    poolCalibrateButton.textContent = 'Recalibrate table';
+  } catch { /* phone calibration is optional */ }
+}
 stage.addEventListener('click', event => {
   if (!poolMode || !poolCalibrationArmed || poolCorners.length >= 4) return;
   const rect = stage.getBoundingClientRect();
-  poolCorners.push({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+  if (!video.videoWidth || !video.videoHeight) return;
+  const ratio = window.devicePixelRatio || 1;
+  const canvasX = (event.clientX - rect.left) * ratio;
+  const canvasY = (event.clientY - rect.top) * ratio;
+  const scale = Math.max(overlay.width / video.videoWidth, overlay.height / video.videoHeight);
+  const offsetX = (overlay.width - video.videoWidth * scale) / 2;
+  const offsetY = (overlay.height - video.videoHeight * scale) / 2;
+  poolCorners.push({
+    x: Math.max(0, Math.min(1, (canvasX - offsetX) / (video.videoWidth * scale))),
+    y: Math.max(0, Math.min(1, (canvasY - offsetY) / (video.videoHeight * scale))),
+  });
   if (poolCorners.length === 4) {
     poolCalibrationArmed = false;
     poolCalibrateButton.textContent = 'Recalibrate table';
@@ -879,3 +917,4 @@ updateTranscript();
 window.setInterval(updateTranscript, 350);
 updateNowPlaying();
 window.setInterval(updateNowPlaying, 1000);
+window.setInterval(pollPoolCalibration, 700);

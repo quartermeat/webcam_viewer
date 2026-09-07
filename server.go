@@ -24,6 +24,7 @@ type phoneSignal struct {
 	sync.RWMutex
 	offer, answer               string
 	previewOffer, previewAnswer string
+	poolCalibration             string
 }
 
 func signalHandler(response http.ResponseWriter, request *http.Request, preview bool) {
@@ -171,6 +172,28 @@ func phoneAnswerHandler(response http.ResponseWriter, request *http.Request) {
 	signalHandler(response, request, false)
 }
 
+func poolCalibrationHandler(response http.ResponseWriter, request *http.Request) {
+	if request.Method == http.MethodPost {
+		var payload struct {
+			Points json.RawMessage `json:"points"`
+		}
+		if json.NewDecoder(request.Body).Decode(&payload) != nil || len(payload.Points) == 0 {
+			writeJSON(response, http.StatusBadRequest, map[string]string{"error": "Invalid calibration points"})
+			return
+		}
+		phone.Lock()
+		phone.poolCalibration = string(payload.Points)
+		phone.Unlock()
+	}
+	phone.RLock()
+	points := phone.poolCalibration
+	phone.RUnlock()
+	if points == "" {
+		points = "[]"
+	}
+	writeJSON(response, http.StatusOK, map[string]string{"points": points})
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/volume", volumeHandler)
@@ -179,6 +202,7 @@ func main() {
 	mux.HandleFunc("/api/phone/answer", phoneAnswerHandler)
 	mux.HandleFunc("/api/phone/preview-offer", func(w http.ResponseWriter, r *http.Request) { signalHandler(w, r, true) })
 	mux.HandleFunc("/api/phone/preview-answer", func(w http.ResponseWriter, r *http.Request) { signalHandler(w, r, true) })
+	mux.HandleFunc("/api/pool/calibration", poolCalibrationHandler)
 	mux.Handle("/", http.FileServer(http.Dir(".")))
 	bindAddress := os.Getenv("WEBCAM_VIEWER_BIND")
 	if bindAddress == "" {
