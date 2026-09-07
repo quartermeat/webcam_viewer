@@ -13,14 +13,19 @@
   <h1>Human Interface camera</h1>
   <video id="preview" autoplay playsinline muted></video>
   <video id="processed" autoplay playsinline muted hidden></video>
-  <button id="start">Connect camera</button>
+  <div>
+    <button id="start">Connect camera</button>
+    <button id="switch" disabled>Switch to back camera</button>
+  </div>
   <div id="state">Waiting for Linux viewer…</div>
 </main>
 <script type="module">
 const preview = document.querySelector('#preview');
 const button = document.querySelector('#start');
+const switchButton = document.querySelector('#switch');
 const state = document.querySelector('#state');
 let camera, peer, previewPeer, answerSeen = '', previewAnswerSeen = '';
+let facingMode = 'user';
 const waitIce = pc => pc.iceGatheringState === 'complete' ? Promise.resolve() : new Promise(resolve => {
   const finish = () => { clearTimeout(timeout); resolve(); };
   const timeout = setTimeout(finish, 2500);
@@ -30,7 +35,7 @@ async function connect() {
   button.disabled = true;
   state.textContent = 'Requesting camera…';
   // 720p keeps the uplink and Linux-side vision pipeline responsive on LAN.
-  camera = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} }, audio:false });
+  camera = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:facingMode}, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} }, audio:false });
   preview.srcObject = camera;
   peer = new RTCPeerConnection({ iceServers:[] });
   camera.getTracks().forEach(track => { track.contentHint = 'motion'; peer.addTrack(track, camera); });
@@ -41,6 +46,7 @@ async function connect() {
   const response = await fetch('/api/phone/offer', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sdp:peer.localDescription.sdp}) });
   if (!response.ok) throw new Error('Linux bridge rejected camera offer');
   state.textContent = 'Camera connected; waiting for viewer answer…';
+  switchButton.disabled = false;
   const poll = async () => {
     if (!peer) return;
     const response = await fetch('/api/phone/answer?t='+Date.now(), {cache:'no-store'});
@@ -55,6 +61,28 @@ async function connect() {
     setTimeout(poll, 700);
   };
   poll();
+}
+async function switchCamera() {
+  if (!peer || !camera) return;
+  switchButton.disabled = true;
+  const nextMode = facingMode === 'user' ? 'environment' : 'user';
+  try {
+    const next = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:nextMode}, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} }, audio:false });
+    const nextTrack = next.getVideoTracks()[0];
+    const sender = peer.getSenders().find(item => item.track?.kind === 'video');
+    if (!sender) throw new Error('Camera video sender is unavailable');
+    await sender.replaceTrack(nextTrack);
+    camera.getTracks().forEach(track => track.stop());
+    camera = next;
+    preview.srcObject = camera;
+    facingMode = nextMode;
+    switchButton.textContent = facingMode === 'user' ? 'Switch to back camera' : 'Switch to front camera';
+    state.textContent = facingMode === 'user' ? 'Front camera active' : 'Back camera active';
+  } catch (error) {
+    state.textContent = 'Camera switch failed: ' + error.message;
+  } finally {
+    switchButton.disabled = false;
+  }
 }
 async function connectPreview() {
   previewPeer = new RTCPeerConnection({ iceServers:[] });
@@ -77,4 +105,5 @@ async function connectPreview() {
   poll();
 }
 button.addEventListener('click', () => connect().catch(error => { button.disabled=false; state.textContent='Camera error: '+error.message; }));
+switchButton.addEventListener('click', () => switchCamera());
 </script>
