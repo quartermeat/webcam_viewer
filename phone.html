@@ -22,7 +22,9 @@ const button = document.querySelector('#start');
 const state = document.querySelector('#state');
 let camera, peer, previewPeer, answerSeen = '', previewAnswerSeen = '';
 const waitIce = pc => pc.iceGatheringState === 'complete' ? Promise.resolve() : new Promise(resolve => {
-  pc.addEventListener('icegatheringstatechange', () => pc.iceGatheringState === 'complete' && resolve(), { once:true });
+  const finish = () => { clearTimeout(timeout); resolve(); };
+  const timeout = setTimeout(finish, 2500);
+  pc.addEventListener('icegatheringstatechange', () => pc.iceGatheringState === 'complete' && finish(), { once:true });
 });
 async function connect() {
   button.disabled = true;
@@ -33,8 +35,10 @@ async function connect() {
   camera.getTracks().forEach(track => peer.addTrack(track, camera));
   const offer = await peer.createOffer();
   await peer.setLocalDescription(offer);
+  state.textContent = 'Gathering local connection…';
   await waitIce(peer);
-  await fetch('/api/phone/offer', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sdp:peer.localDescription.sdp}) });
+  const response = await fetch('/api/phone/offer', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sdp:peer.localDescription.sdp}) });
+  if (!response.ok) throw new Error('Linux bridge rejected camera offer');
   state.textContent = 'Camera connected; waiting for viewer answer…';
   const poll = async () => {
     if (!peer) return;

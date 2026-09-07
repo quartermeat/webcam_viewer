@@ -578,7 +578,9 @@ async function startCamera(deviceId = cameraSelect.value) {
 }
 
 const waitIceGathering = peer => peer.iceGatheringState === 'complete' ? Promise.resolve() : new Promise(resolve => {
-  peer.addEventListener('icegatheringstatechange', () => peer.iceGatheringState === 'complete' && resolve(), { once: true });
+  const finish = () => { clearTimeout(timeout); resolve(); };
+  const timeout = window.setTimeout(finish, 2500);
+  peer.addEventListener('icegatheringstatechange', () => peer.iceGatheringState === 'complete' && finish(), { once: true });
 });
 
 async function startPhoneCamera() {
