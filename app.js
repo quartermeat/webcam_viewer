@@ -50,6 +50,7 @@ let previewOfferSeen = '';
 let recognizer;
 let poseRecognizer;
 let faceDetector;
+let visionDelegate = 'CPU';
 let latestFaceResults;
 let latestPoseResults;
 let poseFrameCount = 0;
@@ -458,27 +459,37 @@ function updateGestureControl(results, transform, ratio) {
   }
 }
 
+async function createVisionTask(factory, vision, options) {
+  for (const delegate of ['GPU', 'CPU']) {
+    try {
+      const task = await factory.createFromOptions(vision, {
+        ...options,
+        baseOptions: { ...options.baseOptions, delegate },
+      });
+      if (delegate === 'GPU') visionDelegate = 'GPU';
+      return task;
+    } catch (error) {
+      if (delegate === 'CPU') throw error;
+      logError('GPU vision delegate unavailable; retrying on CPU', error);
+    }
+  }
+}
+
 async function loadRecognizer() {
   try {
     const vision = await FilesetResolver.forVisionTasks('./node_modules/@mediapipe/tasks-vision/wasm');
-    recognizer = await GestureRecognizer.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task',
-        delegate: 'GPU',
-      },
+    recognizer = await createVisionTask(GestureRecognizer, vision, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task' },
       runningMode: 'VIDEO',
       numHands: 2,
       minHandDetectionConfidence: 0.55,
       minHandPresenceConfidence: 0.55,
       minTrackingConfidence: 0.55,
     });
-    modelState.textContent = 'Hands ready';
+    modelState.textContent = `Hands ready · ${visionDelegate}`;
     try {
-      faceDetector = await FaceDetector.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
-          delegate: 'GPU',
-        },
+      faceDetector = await createVisionTask(FaceDetector, vision, {
+        baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite' },
         runningMode: 'VIDEO',
         minDetectionConfidence: .5,
       });
@@ -486,18 +497,15 @@ async function loadRecognizer() {
       logError('Face detection could not load; using pose nose tracking', error);
     }
     try {
-      poseRecognizer = await PoseLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
-          delegate: 'GPU',
-        },
+      poseRecognizer = await createVisionTask(PoseLandmarker, vision, {
+        baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task' },
         runningMode: 'VIDEO',
         numPoses: 1,
         minPoseDetectionConfidence: .55,
         minPosePresenceConfidence: .55,
         minTrackingConfidence: .55,
       });
-      modelState.textContent = 'Vision ready';
+      modelState.textContent = `Vision ready · ${visionDelegate}`;
     } catch (error) {
       modelState.textContent = 'Hands only';
       logError('Pose recognition could not load', error);

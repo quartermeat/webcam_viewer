@@ -42,3 +42,24 @@ Run `npm run stream` to install the versioned OBS templates, start the overlay w
 The `Webcam Overlay Stream` profile uses a 1920×1080 canvas at 30 FPS with NVIDIA NVENC, 6000 Kbps video, 160 Kbps audio, the tuned full-desktop XSHM crop, default desktop audio, and the default microphone. Stream-service credentials are intentionally excluded from the repository.
 
 OBS captures the complete 3440×1440 desktop inside the 16:9 canvas without stretching it. Minimize OBS or move it to another workspace to keep its preview out of the capture. Choose a streaming service and authenticate in OBS before using **Start Streaming**; account credentials are not stored in this project.
+
+### Android phone companion (debug)
+
+The `android/` project is a small hardware-accelerated WebView shell around `phone.html`. It keeps the existing WebRTC signaling and camera UI, while providing a dedicated fullscreen vehicle for the processed preview.
+
+Open `android/` in Android Studio and run the `app` debug configuration, or build with a local Gradle installation:
+
+```bash
+cd android
+gradle assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+The default workstation URL is `https://192.168.1.13:8443/phone.html`. For another LAN address, pass it when launching:
+
+```bash
+adb shell am start -n com.quartermeat.humaninterface/.MainActivity \
+  --es server_url https://WORKSTATION_IP:8443/phone.html
+```
+
+The debug shell accepts the project's self-signed HTTPS certificate. Keep this behavior limited to development builds on the trusted LAN.
