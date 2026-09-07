@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -182,6 +183,8 @@ func main() {
 	bindAddress := os.Getenv("WEBCAM_VIEWER_BIND")
 	if bindAddress == "" {
 		bindAddress = address
+	} else if _, _, err := net.SplitHostPort(bindAddress); err != nil {
+		bindAddress = net.JoinHostPort(bindAddress, "8090")
 	}
 	server := &http.Server{Addr: bindAddress, Handler: mux, ReadHeaderTimeout: 2 * time.Second}
 	log.Printf("Serving Human Interface on http://%s/", bindAddress)
