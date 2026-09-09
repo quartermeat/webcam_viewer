@@ -21,30 +21,20 @@ app.whenReady().then(async()=>{
   const errors=[];
   window.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message);});
   await window.loadURL(`http://127.0.0.1:${server.address().port}/terrarium.html`);
-  for(let i=0;i<40;i++){
-   await new Promise(resolve=>setTimeout(resolve,100));
-   if(await window.webContents.executeJavaScript("document.getElementById('readout').textContent.includes('GPU /')"))break;
-  }
-  const land=await window.webContents.executeJavaScript("document.getElementById('readout').textContent");
-  await window.webContents.executeJavaScript("document.getElementById('mode').click()");
-  for(let i=0;i<30;i++){
-   await new Promise(resolve=>setTimeout(resolve,100));
-   if(await window.webContents.executeJavaScript("document.getElementById('readout').textContent.includes('BATHYSPHERE')"))break;
-  }
-  const water=await window.webContents.executeJavaScript("document.getElementById('readout').textContent");
+  await new Promise(resolve=>setTimeout(resolve,400));
+  const scene=await window.webContents.executeJavaScript("({tooltip:!!document.getElementById('tooltip'), controls:document.querySelectorAll('button,header,nav').length})");
   const transparency=await window.webContents.executeJavaScript(`(async()=>{
    const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
    const check=()=>ctx.getImageData(0,0,1,1).data[3]===0&&getComputedStyle(document.body).backgroundColor==='rgba(0, 0, 0, 0)';
    const water=check();
-   document.getElementById('mode').click();
    ctx.fillStyle='red';ctx.fillRect(0,0,1,1);
    await new Promise(resolve=>setTimeout(resolve,150));
    return {water,land:check(),oldPixelsCleared:ctx.getImageData(0,0,1,1).data[3]===0};
   })()`);
   result.transparency=transparency;
   result.ok=result.ok&&Object.values(transparency).every(Boolean);
-  result.diagnostics={land,water,errors};
-  result.scene=land.includes('GPU /')&&water.includes('BATHYSPHERE');
+  result.diagnostics={scene,errors};
+  result.scene=scene.tooltip&&scene.controls===0;
   result.ok=result.ok&&result.scene;
  }
  console.log(JSON.stringify(result,null,2));clearTimeout(timeout);server.close();app.exit(result.ok?0:1);

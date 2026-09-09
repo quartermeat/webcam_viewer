@@ -3,6 +3,10 @@ import { advanceMouse } from './circuit-mouse.mjs';
 const canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
 let w, h, time = 0, last = 0, paused = false, aquarium = true, consumed = 0;
 let stats = {}, statsAt = 0;
+const wallpaper = new Image();
+let wallpaperReady = false;
+wallpaper.onload = () => { wallpaperReady = true; };
+wallpaper.src = '/api/wallpaper';
 async function pollStats(){
  try { const response = await fetch('/api/system-stats', {signal:AbortSignal.timeout(1500)}); if(!response.ok)throw Error('unavailable'); stats = await response.json(); statsAt = performance.now(); } catch { stats = {}; }
 }
@@ -36,7 +40,14 @@ if(compute){
 }
 ctx.clearRect(0,0,w,h);
 
-if(aquarium){const g=ctx.createRadialGradient(w*.65,h*.1,0,w*.5,h*.5,w);g.addColorStop(0,'#123c3d');g.addColorStop(1,'#02090e');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}
+if(wallpaperReady){
+ const scale=Math.max(w/wallpaper.naturalWidth,h/wallpaper.naturalHeight);
+ const width=wallpaper.naturalWidth*scale,height=wallpaper.naturalHeight*scale;
+ ctx.drawImage(wallpaper,(w-width)/2,(h-height)/2,width,height);
+}else{
+ const fallback=ctx.createRadialGradient(w*.65,h*.1,0,w*.5,h*.5,w);fallback.addColorStop(0,'#123c3d');fallback.addColorStop(1,'#02090e');ctx.fillStyle=fallback;ctx.fillRect(0,0,w,h);
+}
+
 
 roots.forEach((r,i)=>{r.charge=Math.max(0,r.charge-dt*.1);const x=r.x*w,y=(aquarium?.93:r.y)*h;const height=(50+i%3*30)*(1+r.charge*.4);fissure(x,y,25,6);for(let j=0;j<3;j++){const endX=x+(j-1)*27,endY=y-height+j*9;line([[x,y],[x,y-height*.4],[endX,y-height*.65],[endX,endY]],r.charge>0?'#9cf6bc':'#386e61',2);const p=(time*(.12+(stats.cpu??0)*1.6)+j*.3+i*.1)%1;dot(x+(endX-x)*p,y-height*p,2,'#a8ffb5');ctx.strokeStyle='#7cae7c';ctx.strokeRect(endX-5,endY-7,10,10);}});
 for(const p of packets){ctx.fillStyle='#e0d992';ctx.fillRect(p.x*w-2,p.y*h-2,4,4);}
