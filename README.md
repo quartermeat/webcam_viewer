@@ -17,6 +17,8 @@ The first load downloads Google's gesture- and pose-recognition models. Hold an 
 
 Floating fuzzballs home in on your tracked nose, bounce away on impact, and circle back for another attack. A dedicated short-range face detector downloads on first load and tracks the nose in close-up webcam views, with pose tracking as a fallback. The nose target stays invisible; the system readout shows `Swarm locked` when acquired or `Searching face` when lost. When nose tracking is lost, they drift freely. Sweep a hand through them to scatter or deflect them with the tracked hand wireframes.
 
+In **Attack nose** mode, a larger gold defender fuzzball patrols near your nose, charges nearby drones, and knocks them outward for a short retreat. An impact ring marks each hit. The nose itself stays unmarked. The defender disappears when tracking is lost or fuzzballs are switched off or to Drift; Freeze pauses it with the swarm.
+
 ## Gesture controls
 
 The **Fuzzballs** button cycles **Attack nose → Drift → Freeze** independently of music control. Attack seeks your invisible nose target; Drift lets balls float and respond to your hands; Freeze holds their positions. The FUZZBALLS HUD shows the selected behavior and whether an attack has acquired a target. Reloading starts in Attack nose mode.
@@ -72,3 +74,66 @@ adb shell am start -n com.quartermeat.humaninterface/.MainActivity \
 ```
 
 The debug shell accepts the project's self-signed HTTPS certificate. Keep this behavior limited to development builds on the trusted LAN.
+
+## Substrate desktop terrarium (prototype)
+
+Run `npm run terrarium` to open a transparent, primary-monitor desktop-level
+habitat on X11. Ordinary application windows remain above it; it does not set
+always-on-top or change the wallpaper or login configuration. Desktop icons and
+input routing depend on the window manager and still need desktop validation.
+The existing interface remains available through `npm start`.
+
+The terrarium is a single aquarium view with no persistent text or controls.
+Hover over a creature or circuit root for a contextual readout. Click the
+canvas to release energy packets; packet grazers consume them and charge roots.
+**Ctrl+Alt+Q** quits the terrarium process. The shortcut is available if another
+application has not already registered it.
+
+`GET /api/system-stats` reads Linux `/proc/stat` and `/proc/meminfo` every time
+it is requested. The terrarium polls every two seconds. CPU is aggregate busy
+time between samples (the first sample is unavailable); RAM uses
+`1 - MemAvailable / MemTotal`. CPU drives root pulse speed; RAM shifts fissure
+rims from green toward amber. Missing readings show a dash. All organisms are
+simulated entities, not actual OS processes. Webcam interaction and above-window
+notifications are future work. No camera is activated by this mode.
+
+Browser preview: `npm run serve`, then open
+`http://127.0.0.1:8090/terrarium.html`. Restart an older running bridge to
+expose the new stats endpoint.
+
+Land mice scurry in bursts, pause to scan with twitching sensor ears, and stop
+to nibble collected packets. Their chip shells have contact feet and glowing
+nose sensors; land mice have no trailing appendage.
+
+### GPU diagnostics
+
+Run `npm run gpu:check` to inspect Electron graphics acceleration using a hidden
+window, which closes automatically. Terrarium launches also log Canvas 2D,
+compositing, and rasterization status after GPU information updates. `enabled`
+indicates hardware acceleration; software fallback is reported explicitly by
+Electron. The checked NVIDIA setup reports these three features enabled.
+Rendering uses accelerated Canvas 2D; creature simulation selects a GPU backend when available.
+No GPU blocklist overrides or sandbox-disabling switches are used.
+
+### Creature compute and Go
+
+Go serves a reproducible seeded population at `GET /api/habitat` and continues
+to provide system metrics. JavaScript initializes WebGPU first, then tries
+WebGL2 transform feedback (verified on this NVIDIA setup). WGSL/GLSL shaders
+perform food searches, steering, scanning, nibble timers, movement, and energy
+decay. GPU shader code is required here; ordinary Go does not execute directly
+on the GPU. JavaScript retains input, packet ownership, root charging, and
+Canvas drawing. CPU simulation takes over if initialization or compute fails.
+The HUD names the selected backend. An older Go bridge without `/api/habitat`
+uses the local starting population until restarted.
+
+Run `npm run gpu:check -- --compute` for an actual GPU dispatch test covering
+both habitats, food targeting, no-food behavior, and destroyed-context rejection.
+Run `go test ./...` and `npm test` for the Go and CPU tests.
+
+This is a hybrid compute implementation: compact creature state is transferred
+back to Canvas each tick, and food consumption is resolved in creature order
+to avoid duplicate consumption. Readback has a cost, especially for just 28
+creatures; no performance improvement is claimed. A future renderer can draw
+directly from GPU buffers to remove that transfer. WebGPU was unavailable on
+the checked machine, so its shader path still needs hardware validation.

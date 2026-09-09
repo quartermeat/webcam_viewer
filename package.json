@@ -1,17 +1,19 @@
 {
   "name": "webcam_viewer",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "A small local web app that displays a live webcam feed.",
   "main": "electron-main.js",
   "scripts": {
     "build:bridge": "go build -trimpath -o bin/webcam-viewer-server .",
+    "gpu:check": "electron scripts/gpu-check.cjs",
+    "terrarium": "npm run build:bridge && electron . --terrarium",
     "start": "npm run build:bridge && electron .",
     "obs": "obs --collection \"Webcam Overlay Stream\" --profile \"Webcam Overlay Stream\"",
     "obs:setup": "./scripts/setup-obs.sh",
     "stream": "./scripts/launch-streaming.sh",
     "serve": "npm run build:bridge && ./bin/webcam-viewer-server",
     "phone:start": "./scripts/phone-start.sh",
-    "test": "node --test gesture-controls.test.mjs"
+    "test": "node --test gesture-controls.test.mjs nose-defender.test.mjs circuit-mouse.test.mjs"
   },
   "keywords": [],
   "author": "",

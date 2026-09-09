@@ -1,9 +1,19 @@
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, session, screen, globalShortcut } = require('electron');
 const { spawn } = require('node:child_process');
 const http = require('node:http');
 
 const interfaceUrl = 'http://127.0.0.1:8090/';
 let bridgeProcess;
+const terrarium = process.argv.includes('--terrarium');
+
+app.on('gpu-info-update', () => {
+  if (!terrarium) return;
+  const features = app.getGPUFeatureStatus();
+  console.log('[terrarium GPU]', JSON.stringify({
+    canvas: features['2d_canvas'], compositing: features.gpu_compositing,
+    rasterization: features.rasterization,
+  }));
+});
 
 function bridgeIsRunning() {
   return new Promise(resolve => {
@@ -29,18 +39,22 @@ async function ensureBridge() {
 async function createWindow() {
   await ensureBridge();
   const window = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    ...(terrarium ? { ...screen.getPrimaryDisplay().bounds, type: 'desktop', frame: false, skipTaskbar: true } : {}),
+    width: terrarium ? screen.getPrimaryDisplay().bounds.width : 1440,
+    height: terrarium ? screen.getPrimaryDisplay().bounds.height : 900,
     transparent: true,
     backgroundColor: '#00000000',
     show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   window.once('ready-to-show', () => {
-    window.maximize();
-    window.show();
+    if (terrarium) { window.showInactive(); }
+    else { window.maximize(); window.show(); }
   });
-  await window.loadURL(interfaceUrl);
+  await window.loadURL(interfaceUrl + (terrarium ? 'terrarium.html' : ''));
+  if (terrarium) {
+    globalShortcut.register('CommandOrControl+Alt+Q', () => app.quit());
+  }
 }
 
 app.whenReady().then(async () => {

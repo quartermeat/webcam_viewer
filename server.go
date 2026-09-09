@@ -196,6 +196,8 @@ func poolCalibrationHandler(response http.ResponseWriter, request *http.Request)
 
 func main() {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/habitat", habitatHandler)
+	mux.HandleFunc("/api/system-stats", systemStatsHandler)
 	mux.HandleFunc("/api/volume", volumeHandler)
 	mux.HandleFunc("/api/media", mediaHandler)
 	mux.HandleFunc("/api/phone/offer", phoneOfferHandler)

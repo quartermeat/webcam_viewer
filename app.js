@@ -1,6 +1,8 @@
 import { FilesetResolver, GestureRecognizer, PoseLandmarker, FaceDetector } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
 import { classifyControlHand, createControlHold, updateControlHold } from './gesture-controls.mjs';
 
+import { updateDefender } from './nose-defender.mjs';
+
 const $ = selector => document.querySelector(selector);
 const video = $('#video');
 const stage = $('#stage');
@@ -63,6 +65,7 @@ let poseFrameCount = 0;
 let flexEffects = [];
 const flexLatched = { left: false, right: false };
 let fuzzBalls = [];
+let noseDefender = null;
 let fuzzBounds = '';
 let previousHandPoints = [];
 let mirrored = true;
@@ -296,6 +299,7 @@ function ensureFuzzBalls(width, height, ratio) {
 
 function updateAndDrawFuzzBalls(results, poseResults, transform, ratio, now) {
   if (fuzzMode === 'off') {
+    noseDefender = null;
     fuzzState.textContent = 'OFF';
     return;
   }
@@ -307,8 +311,13 @@ function updateAndDrawFuzzBalls(results, poseResults, transform, ratio, now) {
     || (poseNose?.visibility >= .6 ? poseNose : null);
   const target = nose && Number.isFinite(nose.x) && Number.isFinite(nose.y)
     ? displayPoint(nose, transform) : null;
+  if (fuzzMode === 'attack nose') {
+    noseDefender = updateDefender(noseDefender, fuzzBalls, target, ratio, now);
+  } else if (fuzzMode !== 'freeze') {
+    noseDefender = null;
+  }
   fuzzState.textContent = fuzzMode === 'attack nose'
-    ? (target ? 'ATTACK · LOCKED' : 'ATTACK · SEARCHING')
+    ? (target ? 'ATTACK · BODYGUARD ON' : 'ATTACK · SEARCHING')
     : fuzzMode.toUpperCase();
 
   function updateMotion(ball) {
@@ -390,6 +399,49 @@ function updateAndDrawFuzzBalls(results, poseResults, transform, ratio, now) {
     }
     ctx.restore();
   });
+  if (noseDefender) {
+    const guard = noseDefender;
+    const impact = Math.max(0, 1 - (now - guard.hitAt) / 240);
+    ctx.save();
+    ctx.translate(guard.x, guard.y);
+    ctx.shadowColor = '#ffbd45';
+    ctx.shadowBlur = (20 + impact * 25) * ratio;
+    ctx.fillStyle = '#ffbd45';
+    ctx.strokeStyle = '#ffe5a1';
+    ctx.lineWidth = 2 * ratio;
+    ctx.beginPath();
+    for (let hair = 0; hair < 48; hair++) {
+      const angle = hair / 48 * Math.PI * 2;
+      const r = guard.radius * (hair % 2 ? 1 : 1.3 + .08 * Math.sin(now * .008 + hair));
+      const x = Math.cos(angle) * r, y = Math.sin(angle) * r;
+      if (!hair) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Heavy inward-sloping brows give the bodyguard a scrappy expression.
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#44250c';
+    ctx.lineWidth = 3 * ratio;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 14 * ratio, -10 * ratio);
+      ctx.lineTo(side * 4 * ratio, -5 * ratio);
+      ctx.stroke();
+      ctx.fillStyle = '#44250c';
+      ctx.beginPath();
+      ctx.arc(side * 8 * ratio, -1 * ratio, 2.5 * ratio, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (impact > 0) {
+      ctx.globalAlpha = impact;
+      ctx.strokeStyle = '#fff0ba';
+      ctx.beginPath();
+      ctx.arc(0, 0, guard.radius * (1.4 + (1 - impact) * 1.8), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   previousHandPoints = hands;
 }
 
